@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "796925603688",
+    "project_id": "application-livora",
+    "storage_bucket": "application-livora.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:796925603688:android:153ce24db2aaa8860fb0dd",
+        "android_client_info": {
+          "package_name": "com.example.buddy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "796925603688-4fqcli5f9couclgs0qqctk7dkngin6br.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.buddy",
+            "certificate_hash": "f1e4320ecc91c4147fb9d13e7250c37636480276"
+          }
+        },
+        {
+          "client_id": "796925603688-3ejdhm6l7p181v7lb28hjbmitpj0qeas.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAM1dAs3Z6iVzW2eawaLpnadC86GA_rp1U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "796925603688-3ejdhm6l7p181v7lb28hjbmitpj0qeas.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "796925603688-7229knn8p0966754jiq4trvqs4bpcake.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.livoraaa"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
