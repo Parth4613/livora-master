@@ -514,11 +514,11 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
 
   Widget _buildRoomsGrid() {
     if (kIsWeb) {
-      // Smaller card size for web
-      const double cardSpacing = 16.0;
-      const double cardHeight = 180.0;
+      // Optimized card size for web
+      const double cardSpacing = 20.0;
+      const double cardHeight = 220.0;
       const double gridHeight = (cardHeight * 2) + cardSpacing;
-      const double cardAspectRatio = 0.7;
+      const double cardAspectRatio = 0.8;
 
       return SizedBox(
         height: gridHeight,
@@ -585,15 +585,15 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
   }
 
   Widget _buildPlaceholderCard() {
-    // Different sizes for web and mobile
+    // Optimized sizes for web and mobile
     final isWeb = kIsWeb;
-    final double imageHeight = isWeb ? 120.0 : 200.0;
-    final double padding = isWeb ? 12.0 : 16.0;
-    final double titleHeight = isWeb ? 16.0 : 20.0;
-    final double addressHeight = isWeb ? 12.0 : 16.0;
-    final double buttonHeight = isWeb ? 32.0 : 40.0;
-    final double spacing = isWeb ? 4.0 : 8.0;
-    final double buttonSpacing = isWeb ? 8.0 : 16.0;
+    final double imageHeight = isWeb ? 140.0 : 240.0;
+    final double padding = isWeb ? 16.0 : 20.0;
+    final double titleHeight = isWeb ? 18.0 : 22.0;
+    final double addressHeight = isWeb ? 14.0 : 18.0;
+    final double buttonHeight = isWeb ? 36.0 : 44.0;
+    final double spacing = isWeb ? 6.0 : 10.0;
+    final double buttonSpacing = isWeb ? 12.0 : 18.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -674,17 +674,19 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
     Color successColor,
     Color warningColor,
   ) {
-    // Different sizes for web and mobile
+    // Optimized sizes for web and mobile
     final isWeb = kIsWeb;
-    final double imageHeight = isWeb ? 120.0 : 200.0;
-    final double padding = isWeb ? 12.0 : 16.0;
-    final double titleFontSize = isWeb ? 16.0 : 20.0;
-    final double priceFontSize = isWeb ? 14.0 : 18.0;
-    final double addressFontSize = isWeb ? 11.0 : 14.0;
-    final double buttonFontSize = isWeb ? 12.0 : 15.0;
-    final double buttonPadding = isWeb ? 8.0 : 12.0;
-    final double spacing = isWeb ? 4.0 : 8.0;
-    final double buttonSpacing = isWeb ? 8.0 : 16.0;
+    final double imageHeight = isWeb ? 140.0 : 240.0;
+    final double padding = isWeb ? 16.0 : 20.0;
+    final double titleFontSize = isWeb ? 18.0 : 22.0;
+    final double priceFontSize = isWeb ? 16.0 : 20.0;
+    final double addressFontSize = isWeb ? 13.0 : 16.0;
+    final double buttonFontSize = isWeb ? 14.0 : 16.0;
+    final double buttonPadding = isWeb ? 10.0 : 14.0;
+    final double spacing = isWeb ? 6.0 : 10.0;
+    final double buttonSpacing = isWeb ? 12.0 : 18.0;
+    final double iconSize = isWeb ? 16.0 : 20.0;
+    final double badgePadding = isWeb ? 6.0 : 8.0;
 
     // Get the image URL from the firstPhoto field or try to find one from uploadedPhotos
     String? imageUrl = room['firstPhoto'] as String?;
@@ -759,7 +761,7 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
                           child: Icon(
                             Icons.image_not_supported_outlined,
                             color: textLight,
-                            size: isWeb ? 32 : 48,
+                            size: isWeb ? 40 : 56,
                           ),
                         ),
                   ),
@@ -775,7 +777,7 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
                       topRight: Radius.circular(16),
                     ),
                   ),
-                  child: Icon(Icons.image, color: textLight, size: isWeb ? 32 : 48),
+                  child: Icon(Icons.image, color: textLight, size: isWeb ? 40 : 56),
                 ),
 
               // Available Now badge
@@ -784,8 +786,8 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
                 bottom: 12,
                 child: Container(
                   padding: EdgeInsets.symmetric(
-                    horizontal: isWeb ? 8 : 12,
-                    vertical: isWeb ? 4 : 6,
+                    horizontal: badgePadding,
+                    vertical: badgePadding / 2,
                   ),
                 ),
               ),
@@ -836,7 +838,7 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
                               TextSpan(
                                 text: '/mo',
                                 style: TextStyle(
-                                  fontSize: isWeb ? 10.0 : 14.0,
+                                  fontSize: isWeb ? 12.0 : 16.0,
                                   fontWeight: FontWeight.w500,
                                   color: textSecondary,
                                 ),
@@ -857,9 +859,9 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
                     Icon(
                       Icons.location_on_outlined,
                       color: textSecondary,
-                      size: isWeb ? 14 : 16,
+                      size: iconSize,
                     ),
-                    SizedBox(width: isWeb ? 3 : 4),
+                    SizedBox(width: spacing / 2),
                     Expanded(
                       child: Text(
                         room['location'] ?? 'Location',
@@ -882,8 +884,8 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
                     // Room type tag
                     Container(
                       padding: EdgeInsets.symmetric(
-                        horizontal: isWeb ? 8 : 12,
-                        vertical: isWeb ? 4 : 6,
+                        horizontal: badgePadding,
+                        vertical: badgePadding / 2,
                       ),
                       decoration: BoxDecoration(
                         color: accentColor,
@@ -895,19 +897,19 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
                         room['roomType'] ?? 'Shared',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: isWeb ? 10 : 12,
+                          fontSize: isWeb ? 12 : 14,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
 
-                    SizedBox(width: isWeb ? 6 : 8),
+                    SizedBox(width: spacing),
 
                     // Flat size tag
                     Container(
                       padding: EdgeInsets.symmetric(
-                        horizontal: isWeb ? 8 : 12,
-                        vertical: isWeb ? 4 : 6,
+                        horizontal: badgePadding,
+                        vertical: badgePadding / 2,
                       ),
                       decoration: BoxDecoration(
                         color: textSecondary.withOpacity(0.1),
@@ -922,7 +924,7 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
                         room['flatSize'] ?? '2 Beds',
                         style: TextStyle(
                           color: textSecondary,
-                          fontSize: isWeb ? 10 : 12,
+                          fontSize: isWeb ? 12 : 14,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

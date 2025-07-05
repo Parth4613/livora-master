@@ -356,18 +356,8 @@ class _HomePageState extends State<HomePage>
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  // Two promo banners at top
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildWebPromoCard(context, 0),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildWebPromoCard(context, 1),
-                      ),
-                    ],
-                  ),
+                  // Banner carousel at top (same as mobile)
+                  _buildWebBannerCarousel(context),
                   const SizedBox(height: 24),
                   // 4 main cards in grid - smaller size
                   Expanded(
@@ -445,6 +435,76 @@ class _HomePageState extends State<HomePage>
   }
 
 
+
+  Widget _buildWebBannerCarousel(BuildContext context) {
+    final theme = Theme.of(context);
+    if (!_bannersLoaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return Stack(
+      children: [
+        _BannerCarouselWidget(banners: _banners, theme: theme),
+        if (_isAdmin)
+          Positioned(
+            top: 0,
+            right: 0,
+            child: IconButton(
+              icon: const Icon(Icons.edit, color: Colors.orange),
+              tooltip: 'Edit Banners',
+              onPressed: () async {
+                await showDialog(
+                  context: context,
+                  builder: (context) {
+                    return StatefulBuilder(
+                      builder: (context, setState) {
+                        return SimpleDialog(
+                          title: const Text('Edit Promo Banners'),
+                          children: [
+                            ...List.generate(_banners.length, (i) {
+                              final b = _banners[i];
+                              return ListTile(
+                                leading:
+                                    b['image'] != null
+                                        ? Image.network(
+                                          b['image'],
+                                          width: 40,
+                                          height: 40,
+                                          fit: BoxFit.cover,
+                                        )
+                                        : null,
+                                title: Text(b['title'] ?? ''),
+                                subtitle: Text(b['subtitle'] ?? ''),
+                                trailing: const Icon(Icons.edit),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  _editBanner(i);
+                                },
+                              );
+                            }),
+                            const Divider(),
+                            ListTile(
+                              leading: const Icon(
+                                Icons.add,
+                                color: Colors.green,
+                              ),
+                              title: const Text('Add New Banner'),
+                              onTap: () async {
+                                Navigator.pop(context);
+                                await _addNewBanner(context);
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
 
   Widget _buildWebPromoCard(BuildContext context, int bannerIndex) {
     final theme = Theme.of(context);
@@ -2162,6 +2222,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final navBarColor = const Color(0xFF23262F);
     final navBarIconColor = Colors.white;
     final navBarSelectedColor = BuddyTheme.primaryColor;
+    
+    // Check if we're on web platform
+    final isWeb = MediaQuery.of(context).size.width > 600;
 
     return Theme(
       data: darkTheme,
@@ -2177,7 +2240,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: _pages[_selectedIndex],
           ),
           floatingActionButton:
-              _selectedIndex == 0 && _bannersLoaded
+              _selectedIndex == 0 && _bannersLoaded && !isWeb
                   ? Container(
                     decoration: BuddyTheme.fabShadowDecoration,
                     child: FloatingActionButton(
@@ -2196,7 +2259,7 @@ class _HomeScreenState extends State<HomeScreen> {
           floatingActionButtonLocation:
               FloatingActionButtonLocation.centerDocked,
           bottomNavigationBar:
-              _bannersLoaded
+              _bannersLoaded && !isWeb
                   ? BottomAppBar(
                     notchMargin: BuddyTheme.spacingSm,
                     elevation: BuddyTheme.elevationMd,

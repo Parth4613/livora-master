@@ -394,11 +394,11 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     }
 
     if (kIsWeb) {
-      // Smaller card size for web
-      const double cardSpacing = 16.0;
-      const double cardHeight = 180.0;
+      // Optimized card size for web
+      const double cardSpacing = 20.0;
+      const double cardHeight = 220.0;
       const double gridHeight = (cardHeight * 2) + cardSpacing;
-      const double cardAspectRatio = 0.7;
+      const double cardAspectRatio = 0.8;
 
       return SizedBox(
         height: gridHeight,
@@ -557,11 +557,25 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     Color cardColor,
     Color labelColor,
   ) {
+    // Optimized sizes for web and mobile
+    final isWeb = kIsWeb;
+    final double padding = isWeb ? 16.0 : 20.0;
+    final double avatarRadius = isWeb ? 30.0 : 35.0;
+    final double titleFontSize = isWeb ? 18.0 : 22.0;
+    final double subtitleFontSize = isWeb ? 14.0 : 16.0;
+    final double locationFontSize = isWeb ? 12.0 : 14.0;
+    final double buttonFontSize = isWeb ? 14.0 : 16.0;
+    final double buttonPadding = isWeb ? 10.0 : 14.0;
+    final double spacing = isWeb ? 6.0 : 10.0;
+    final double buttonSpacing = isWeb ? 12.0 : 18.0;
+    final double iconSize = isWeb ? 16.0 : 20.0;
+    final double badgePadding = isWeb ? 6.0 : 8.0;
+    
     final Color accentColor = const Color(0xFF64B5F6);
     return Container(
       decoration: BuddyTheme.cardDecoration.copyWith(color: cardColor),
       child: Padding(
-        padding: const EdgeInsets.all(BuddyTheme.spacingMd),
+        padding: EdgeInsets.all(padding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -569,7 +583,7 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
             Row(
               children: [
                 CircleAvatar(
-                  radius: 35,
+                  radius: avatarRadius,
                   backgroundColor: cardColor,
                   backgroundImage:
                       flatmate['profilePhotoUrl'] != null
@@ -580,11 +594,11 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                           ? Icon(
                             Icons.person,
                             color: Colors.white,
-                            size: BuddyTheme.iconSizeLg,
+                            size: isWeb ? 24 : 28,
                           )
                           : null,
                 ),
-                const SizedBox(width: BuddyTheme.spacingMd),
+                SizedBox(width: spacing),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -592,7 +606,7 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                       Text(
                         flatmate['name'] ?? 'No Name',
                         style: TextStyle(
-                          fontSize: 20,
+                          fontSize: titleFontSize,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
@@ -600,23 +614,23 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                       Text(
                         '${flatmate['age'] ?? ''} • ${flatmate['occupation'] ?? ''}',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: subtitleFontSize,
                           color: Colors.white.withOpacity(0.7),
                         ),
                       ),
-                      const SizedBox(height: BuddyTheme.spacingXs),
+                      SizedBox(height: spacing / 2),
                       Row(
                         children: [
                           Icon(
                             Icons.location_on,
                             color: Colors.white.withOpacity(0.7),
-                            size: BuddyTheme.iconSizeSm,
+                            size: iconSize,
                           ),
-                          const SizedBox(width: BuddyTheme.spacingXxs),
+                          SizedBox(width: spacing / 2),
                           Text(
                             flatmate['location'] ?? '',
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: locationFontSize,
                               color: Colors.white.withOpacity(0.7),
                             ),
                           ),

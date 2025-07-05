@@ -408,11 +408,11 @@ class _HostelpgPageState extends State<HostelpgPage> {
 
   Widget _buildHostelsGrid() {
     if (kIsWeb) {
-      // Smaller card size for web
-      const double cardSpacing = 16.0;
-      const double cardHeight = 180.0;
+      // Optimized card size for web
+      const double cardSpacing = 20.0;
+      const double cardHeight = 220.0;
       const double gridHeight = (cardHeight * 2) + cardSpacing;
-      const double cardAspectRatio = 0.7;
+      const double cardAspectRatio = 0.8;
 
       return SizedBox(
         height: gridHeight,
@@ -511,16 +511,17 @@ class _HostelpgPageState extends State<HostelpgPage> {
     Color successColor,
     Color warningColor,
   ) {
-    // Different sizes for web and mobile
+    // Optimized sizes for web and mobile
     final isWeb = kIsWeb;
-    final double imageHeight = isWeb ? 120.0 : 220.0;
-    final double padding = isWeb ? 12.0 : 20.0;
-    final double titleFontSize = isWeb ? 14.0 : 18.0;
-    final double addressFontSize = isWeb ? 11.0 : 14.0;
-    final double buttonFontSize = isWeb ? 12.0 : 15.0;
-    final double buttonPadding = isWeb ? 8.0 : 14.0;
-    final double spacing = isWeb ? 4.0 : 6.0;
-    final double buttonSpacing = isWeb ? 8.0 : 12.0;
+    final double imageHeight = isWeb ? 140.0 : 240.0;
+    final double padding = isWeb ? 16.0 : 20.0;
+    final double titleFontSize = isWeb ? 18.0 : 22.0;
+    final double addressFontSize = isWeb ? 13.0 : 16.0;
+    final double buttonFontSize = isWeb ? 14.0 : 16.0;
+    final double buttonPadding = isWeb ? 10.0 : 14.0;
+    final double spacing = isWeb ? 6.0 : 10.0;
+    final double buttonSpacing = isWeb ? 12.0 : 18.0;
+    final double iconSize = isWeb ? 16.0 : 20.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -561,7 +562,7 @@ class _HostelpgPageState extends State<HostelpgPage> {
                         child: Icon(
                           Icons.image_not_supported_outlined,
                           color: textLight,
-                          size: isWeb ? 32 : 48,
+                          size: isWeb ? 40 : 56,
                         ),
                       ),
                 ),
@@ -636,15 +637,15 @@ class _HostelpgPageState extends State<HostelpgPage> {
   }
 
   Widget _buildHostelPlaceholderCard() {
-    // Different sizes for web and mobile
+    // Optimized sizes for web and mobile
     final isWeb = kIsWeb;
-    final double imageHeight = isWeb ? 120.0 : 220.0;
-    final double padding = isWeb ? 12.0 : 20.0;
-    final double titleHeight = isWeb ? 16.0 : 20.0;
-    final double addressHeight = isWeb ? 12.0 : 16.0;
-    final double buttonHeight = isWeb ? 32.0 : 40.0;
-    final double spacing = isWeb ? 4.0 : 6.0;
-    final double buttonSpacing = isWeb ? 8.0 : 12.0;
+    final double imageHeight = isWeb ? 140.0 : 240.0;
+    final double padding = isWeb ? 16.0 : 20.0;
+    final double titleHeight = isWeb ? 18.0 : 22.0;
+    final double addressHeight = isWeb ? 14.0 : 18.0;
+    final double buttonHeight = isWeb ? 36.0 : 44.0;
+    final double spacing = isWeb ? 6.0 : 10.0;
+    final double buttonSpacing = isWeb ? 12.0 : 18.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -669,7 +670,7 @@ class _HostelpgPageState extends State<HostelpgPage> {
             child: Icon(
               Icons.image_outlined,
               color: Colors.white38,
-              size: isWeb ? 32 : 48,
+              size: isWeb ? 40 : 56,
             ),
           ),
           // Placeholder content

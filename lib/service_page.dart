@@ -353,11 +353,11 @@ class _ServicesPageState extends State<ServicesPage> {
 
   Widget _buildServicesGrid() {
     if (kIsWeb) {
-      // Smaller card size for web
-      const double cardSpacing = 16.0;
-      const double cardHeight = 180.0;
+      // Optimized card size for web
+      const double cardSpacing = 20.0;
+      const double cardHeight = 220.0;
       const double gridHeight = (cardHeight * 2) + cardSpacing;
-      const double cardAspectRatio = 0.7;
+      const double cardAspectRatio = 0.8;
 
       return SizedBox(
         height: gridHeight,
@@ -456,6 +456,19 @@ class _ServicesPageState extends State<ServicesPage> {
     Color warningColor,
     Color backgroundColor,
   ) {
+    // Optimized sizes for web and mobile
+    final isWeb = kIsWeb;
+    final double imageHeight = isWeb ? 140.0 : 200.0;
+    final double padding = isWeb ? 16.0 : 20.0;
+    final double titleFontSize = isWeb ? 18.0 : 22.0;
+    final double subtitleFontSize = isWeb ? 14.0 : 16.0;
+    final double locationFontSize = isWeb ? 12.0 : 14.0;
+    final double buttonFontSize = isWeb ? 14.0 : 16.0;
+    final double buttonPadding = isWeb ? 10.0 : 14.0;
+    final double spacing = isWeb ? 6.0 : 10.0;
+    final double buttonSpacing = isWeb ? 12.0 : 18.0;
+    final double iconSize = isWeb ? 16.0 : 20.0;
+    final double badgePadding = isWeb ? 6.0 : 8.0;
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -490,7 +503,7 @@ class _ServicesPageState extends State<ServicesPage> {
                   ),
                   child: CachedNetworkImage(
                     imageUrl: service['imageUrl'],
-                    height: 200,
+                    height: imageHeight,
                     width: double.infinity,
                     fit: BoxFit.cover,
                     placeholder:
@@ -515,9 +528,9 @@ class _ServicesPageState extends State<ServicesPage> {
                   top: 12,
                   right: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: badgePadding,
+                      vertical: badgePadding / 2,
                     ),
                     decoration: BoxDecoration(
                       color: primaryColor,
@@ -525,9 +538,9 @@ class _ServicesPageState extends State<ServicesPage> {
                     ),
                     child: Text(
                       service['serviceType'].toUpperCase(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: isWeb ? 12 : 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -536,7 +549,7 @@ class _ServicesPageState extends State<ServicesPage> {
               ],
             ),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(padding),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -546,7 +559,7 @@ class _ServicesPageState extends State<ServicesPage> {
                         child: Text(
                           service['serviceName'],
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: titleFontSize,
                             fontWeight: FontWeight.w700,
                             color: textPrimary,
                           ),
@@ -554,38 +567,38 @@ class _ServicesPageState extends State<ServicesPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: spacing / 2),
                   Text(
                     service['serviceType'],
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: subtitleFontSize,
                       color: textSecondary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: spacing),
                   Row(
                     children: [
                       Icon(
                         Icons.location_on_outlined,
-                        size: 16,
+                        size: iconSize,
                         color: textSecondary,
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: spacing / 2),
                       Expanded(
                         child: Text(
                           service['location'],
-                          style: TextStyle(fontSize: 12, color: textSecondary),
+                          style: TextStyle(fontSize: locationFontSize, color: textSecondary),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (service['distance'] != null) ...[
-                        const SizedBox(width: 8),
+                        SizedBox(width: spacing),
                         Text(
                           service['distance'],
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: locationFontSize,
                             color: textSecondary,
                             fontWeight: FontWeight.w500,
                           ),
@@ -593,45 +606,45 @@ class _ServicesPageState extends State<ServicesPage> {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: spacing / 2),
                   Row(
                     children: [
-                      Icon(
-                        Icons.access_time_outlined,
-                        size: 16,
-                        color: textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${service['openingTime']} - ${service['closingTime']}',
-                        style: TextStyle(fontSize: 12, color: textSecondary),
-                      ),
-                      const Spacer(),
-                      if (service['reviews'] != null)
-                        Text(
-                          '(${service['reviews']} reviews)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: textLight,
-                            fontStyle: FontStyle.italic,
-                          ),
+                                              Icon(
+                          Icons.access_time_outlined,
+                          size: iconSize,
+                          color: textSecondary,
                         ),
-                    ],
-                  ),
+                        SizedBox(width: spacing / 2),
+                        Text(
+                          '${service['openingTime']} - ${service['closingTime']}',
+                          style: TextStyle(fontSize: locationFontSize, color: textSecondary),
+                        ),
+                        const Spacer(),
+                        if (service['reviews'] != null)
+                          Text(
+                            '(${service['reviews']} reviews)',
+                            style: TextStyle(
+                              fontSize: locationFontSize,
+                              color: textLight,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                      ],
+                    ),
                   if (service['offDay'] != 'None') ...[
-                    const SizedBox(height: 4),
+                    SizedBox(height: spacing / 2),
                     Row(
                       children: [
                         Icon(
                           Icons.event_busy_outlined,
-                          size: 16,
+                          size: iconSize,
                           color: warningColor,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: spacing / 2),
                         Text(
                           'Closed on ${service['offDay']}',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: locationFontSize,
                             color: warningColor,
                             fontWeight: FontWeight.w500,
                           ),
@@ -640,7 +653,7 @@ class _ServicesPageState extends State<ServicesPage> {
                     ),
                   ],
 
-                  const SizedBox(height: 16),
+                  SizedBox(height: buttonSpacing),
                   Row(
                     children: [
                       Expanded(
