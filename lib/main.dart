@@ -26,6 +26,7 @@ import 'chat_screen.dart'; // Import chat screen for notification navigation
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'landing_page_web.dart';
 
+
 // Add RouteObserver
 final RouteObserver<ModalRoute<void>> routeObserver =
     RouteObserver<ModalRoute<void>>();
@@ -44,15 +45,27 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Hide system navigation and status bars at app startup
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+  
+  try {
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      print('Firebase initialized successfully');
   }
 
-  // Set background message handler
+    // Set background message handler (skip on web)
+    if (!kIsWeb) {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    }
 
   // Initialize notifications in the background to prevent blocking app startup
   _initializeNotificationsInBackground();
+  
+
+  
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+    // Continue with app startup even if Firebase fails
+  }
 
   runApp(const BuddyApp());
 }
@@ -61,6 +74,12 @@ void main() async {
 void _initializeNotificationsInBackground() {
   Future.delayed(const Duration(milliseconds: 100), () async {
     try {
+      // Skip on web platform
+      if (kIsWeb) {
+        print('Skipping notification initialization on web');
+        return;
+      }
+      
       print('Starting background notification initialization...');
       final firebaseApi = FirebaseApi.instance;
       await firebaseApi.initNotifications();
@@ -73,6 +92,12 @@ void _initializeNotificationsInBackground() {
 }
 
 Future<void> _setupFirebaseNotifications() async {
+  // Skip on web platform
+  if (kIsWeb) {
+    print('Skipping Firebase notifications setup on web');
+    return;
+  }
+  
   final firebaseApi = FirebaseApi.instance;
   await firebaseApi.initNotifications();
 

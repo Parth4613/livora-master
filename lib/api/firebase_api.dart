@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/user_utils.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 // Global navigator key for handling notification navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -49,10 +50,30 @@ class FirebaseApi {
   void setCurrentChatRoom(String? chatRoomId) {
     _currentChatRoomId = chatRoomId;
     _isInChatScreen = chatRoomId != null;
+    _updateUserOnlineStatus(chatRoomId);
   }
 
   void setChatScreenState(bool isInChat) {
     _isInChatScreen = isInChat;
+    if (!isInChat) {
+      _updateUserOnlineStatus(null);
+    }
+  }
+
+  // Update user's online status in Firestore
+  Future<void> _updateUserOnlineStatus(String? chatRoomId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'isOnline': chatRoomId != null,
+          'currentChatRoom': chatRoomId,
+          'lastSeen': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      print('Error updating user online status: $e');
+    }
   }
 
   // Method to check if notifications are initialized
@@ -69,6 +90,13 @@ class FirebaseApi {
   Future<void> initNotifications() async {
     try {
       print('Initializing notifications...');
+      
+      // Skip mobile-specific features on web
+      if (kIsWeb) {
+        print('Running on web - skipping mobile-specific notification features');
+        _notificationsInitialized = true;
+        return;
+      }
       
       // Request permissions with timeout
       final settings = await _firebaseMessaging.requestPermission(
@@ -136,6 +164,12 @@ class FirebaseApi {
 
   Future<void> _createNotificationChannels() async {
     try {
+      // Skip on web platform
+      if (kIsWeb) {
+        print('Skipping notification channel creation on web');
+        return;
+      }
+      
       // Chat notifications channel (high priority)
       final androidChatChannel = AndroidNotificationChannel(
         _chatChannelId,
@@ -176,6 +210,12 @@ class FirebaseApi {
 
   Future<void> _initializeLocalNotifications() async {
     try {
+      // Skip on web platform
+      if (kIsWeb) {
+        print('Skipping local notifications initialization on web');
+        return;
+      }
+      
       const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
       const iosInit = DarwinInitializationSettings(
         requestAlertPermission: true,
@@ -201,6 +241,12 @@ class FirebaseApi {
 
   Future<void> _saveFCMToken(String token) async {
     try {
+      // Skip FCM token saving on web platform
+      if (kIsWeb) {
+        print('Skipping FCM token saving on web');
+        return;
+      }
+      
       final user = _auth.currentUser;
       if (user != null) {
         // Save to Realtime Database with timeout
@@ -232,6 +278,12 @@ class FirebaseApi {
 
   void _setupMessageHandlers() {
     try {
+      // Skip on web platform
+      if (kIsWeb) {
+        print('Skipping message handlers setup on web');
+        return;
+      }
+      
       // Handle foreground messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
@@ -419,6 +471,12 @@ class FirebaseApi {
 
   void _setupChatMessageListeners() {
     try {
+      // Skip on web platform
+      if (kIsWeb) {
+        print('Skipping chat message listeners setup on web');
+        return;
+      }
+      
       final user = _auth.currentUser;
       if (user == null) return;
 
@@ -504,8 +562,24 @@ class FirebaseApi {
 
   // Add FCM foreground handler
   void setupFCMForegroundHandler() {
+    // Skip on web platform
+    if (kIsWeb) {
+      print('Skipping FCM foreground handler setup on web');
+      return;
+    }
+    
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('FCM message received in foreground: ${message.data}');
+      
+      // Don't show notification if user is in chat screen with the sender
+      if (_isInChatScreen && _currentChatRoomId != null) {
+        final senderId = message.data['senderId'];
+        if (senderId != null && _currentChatRoomId!.contains(senderId)) {
+          print('Skipping notification - user is in chat with sender');
+          return;
+        }
+      }
+      
       if (message.notification != null) {
         _localNotifications.show(
           _chatNotificationId + (message.data['senderId']?.hashCode ?? 0),
@@ -542,22 +616,21 @@ class FirebaseApi {
     required String chatRoomId,
   }) async {
     try {
-      print('Creating notification request for $receiverId');
+      print('Sending chat notification to $receiverId');
       
-      // Create a notification request in Firestore
-      // This will trigger the sendChatNotification Cloud Function
-      await FirebaseFirestore.instance.collection('notification_requests').add({
-        'type': 'chat_message',
+      // Send notification directly via Cloud Function without saving to Firestore
+      final functions = FirebaseFunctions.instance;
+      final callable = functions.httpsCallable('sendChatNotification');
+      
+      await callable.call({
         'receiverId': receiverId,
         'senderId': _auth.currentUser?.uid,
         'senderName': senderName,
         'message': message,
         'chatRoomId': chatRoomId,
-        'timestamp': FieldValue.serverTimestamp(),
-        'status': 'pending',
       });
       
-      print('Notification request created successfully');
+      print('Chat notification sent successfully');
     } catch (e) {
       print('Error in sendChatNotification: $e');
     }
@@ -602,11 +675,23 @@ class FirebaseApi {
 
   // Method to clear all notifications
   Future<void> clearAllNotifications() async {
+    // Skip on web platform
+    if (kIsWeb) {
+      print('Skipping clear all notifications on web');
+      return;
+    }
+    
     await _localNotifications.cancelAll();
   }
 
   // Method to clear specific chat notifications
   Future<void> clearChatNotifications(String senderId) async {
+    // Skip on web platform
+    if (kIsWeb) {
+      print('Skipping clear chat notifications on web');
+      return;
+    }
+    
     await _localNotifications.cancel(_chatNotificationId + senderId.hashCode);
   }
 
@@ -624,6 +709,12 @@ class FirebaseApi {
   // Method to show test notification
   Future<void> showTestNotification() async {
     try {
+      // Skip on web platform
+      if (kIsWeb) {
+        print('Skipping test notification on web');
+        return;
+      }
+      
       print('Calling test notification Cloud Function...');
       
       // Call the deployed Cloud Function

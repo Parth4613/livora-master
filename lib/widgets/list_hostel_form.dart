@@ -14,6 +14,8 @@ import '../api/maptiler_autocomplete.dart';
 import 'validation_widgets.dart';
 import '../utils/user_utils.dart';
 import '../utils/cache_utils.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../services/efficient_payment_service.dart';
 
 class ListHostelForm extends StatefulWidget {
   ListHostelForm({Key? key}) : super(key: key) {}
@@ -248,7 +250,7 @@ class _ListHostelFormState extends State<ListHostelForm>
       imageQuality: 85,
     );
     if (picked != null) {
-      final url = await FirebaseStorageService.uploadImage(picked.path);
+      final url = await FirebaseStorageService.uploadImage(kIsWeb ? picked : picked.path);
       if (url.isNotEmpty) {
         setState(() {
           _uploadedPhotos[photoType] = url;
@@ -315,6 +317,13 @@ class _ListHostelFormState extends State<ListHostelForm>
   void _submitForm() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
 
+    // Get the plan price
+    final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
+    if (planPrice <= 0) {
+      ValidationSnackBar.showError(context, 'Invalid plan price');
+      return;
+    }
+
     // Plan expiry logic
     Duration planDuration;
     switch (_selectedPlan) {
@@ -372,12 +381,14 @@ class _ListHostelFormState extends State<ListHostelForm>
       'createdAt': DateTime.now().toIso8601String(),
       'selectedPlan': _selectedPlan,
       'expiryDate': expiryDate.toIso8601String(),
-      'visibility': true,
+      'visibility': false, // Set to false initially, will be true after payment
+      'paymentStatus': 'pending',
       'latitude': _pickedLocation?.latitude,
       'longitude': _pickedLocation?.longitude,
     };
 
     try {
+      // First, create the listing with pending payment status
       final newHostelDocRef = await FirebaseFirestore.instance.collection('hostel_listings').add(data);
       final newHostelDocId = newHostelDocRef.id;
 
@@ -395,11 +406,17 @@ class _ListHostelFormState extends State<ListHostelForm>
             }, SetOptions(merge: true));
       }
 
+      // Now process payment
+              await EfficientPaymentService().processListingPayment(
+        listingType: 'list_hostelpg',
+        planName: _selectedPlan,
+        amount: planPrice,
+        listingId: newHostelDocId,
+        context: context,
+      );
+
       // Invalidate hostel cache to ensure fresh data
       await CacheUtils.invalidateHostelCache();
-
-      ValidationSnackBar.showSuccess(context, 'Hostel listing submitted successfully!');
-      Navigator.pop(context);
     } catch (e) {
       ValidationSnackBar.showError(context, 'Failed to submit: $e');
     }

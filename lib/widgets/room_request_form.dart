@@ -1,6 +1,7 @@
 import 'package:buddy/api/map_location_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -13,6 +14,7 @@ import '../api/maptiler_autocomplete.dart';
 import 'validation_widgets.dart';
 import '../utils/user_utils.dart';
 import '../utils/cache_utils.dart';
+import '../services/efficient_payment_service.dart';
 
 class RoomRequestForm extends StatefulWidget {
   const RoomRequestForm({Key? key}) : super(key: key);
@@ -33,7 +35,7 @@ class _RoomRequestFormState extends State<RoomRequestForm>
   bool _isUploading = false;
   bool _isNavigating = false; // Add this flag to prevent rapid navigation
   DateTime _lastNavigationTime = DateTime.now();
-  File? _profileImage;
+  dynamic _profileImage; // Changed from File? to dynamic to support both File and XFile
 
   int _currentStep = 0;
   final int _totalSteps =
@@ -250,12 +252,19 @@ class _RoomRequestFormState extends State<RoomRequestForm>
   }
 
   Future<String?> _uploadProfileImageIfNeeded() async {
-    if (_profileImage == null) return null;
+    if (_profileImage == null) {
+      print('No profile image selected for upload');
+      return null;
+    }
+    
     setState(() => _isUploading = true);
     try {
+      print('Uploading profile image: ${_profileImage!.path}');
       final url = await FirebaseStorageService.uploadImage(_profileImage!.path);
+      print('Profile image uploaded successfully: $url');
       return url;
     } catch (e) {
+      print('Error uploading profile image: $e');
       ValidationSnackBar.showError(context, 'Error uploading image: $e');
       return null;
     } finally {
@@ -272,10 +281,25 @@ class _RoomRequestFormState extends State<RoomRequestForm>
       ValidationSnackBar.showError(context, 'Please fill all required fields');
       return;
     }
+    
+    // Validate profile image is selected
+    if (_profileImage == null) {
+      ValidationSnackBar.showError(context, 'Please select a profile photo');
+      return;
+    }
+    
     if (_formKey.currentState == null || !_formKey.currentState!.validate())
       return;
 
     setState(() => _isUploading = true);
+
+    // Get the plan price
+    final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
+    if (planPrice <= 0) {
+      ValidationSnackBar.showError(context, 'Invalid plan price');
+      setState(() => _isUploading = false);
+      return;
+    }
 
     // Plan expiry logic
     Duration planDuration;
@@ -309,10 +333,16 @@ class _RoomRequestFormState extends State<RoomRequestForm>
     // Upload profile image (required)
     String profilePhotoUrl;
     try {
+      print('Starting profile photo upload...');
+      print('Profile image type: ${_profileImage.runtimeType}');
+      print('Profile image path: ${_profileImage.path}');
+      
       profilePhotoUrl = await FirebaseStorageService.uploadImage(
-        _profileImage!.path,
+        _profileImage,
       );
+      print('Profile photo uploaded successfully: $profilePhotoUrl');
     } catch (e) {
+      print('Error uploading profile photo: $e');
       ValidationSnackBar.showError(context, 'Error uploading image: $e');
       setState(() => _isUploading = false);
       return;
@@ -344,22 +374,34 @@ class _RoomRequestFormState extends State<RoomRequestForm>
       'selectedPlan': _selectedPlan,
       'createdAt': FieldValue.serverTimestamp(),
       'expiryDate': expiryDate.toIso8601String(),
-      'visibility': true,
+      'visibility': false, // Set to false initially, will be true after payment
+      'paymentStatus': 'pending',
     };
 
+    print('Submitting flatmate request with data: ${requestData.toString()}');
+
     try {
-      await FirebaseFirestore.instance
+      // First, create the request with pending payment status
+      final docRef = await FirebaseFirestore.instance
           .collection('roomRequests')
           .add(requestData);
+      
+      print('Flatmate request submitted successfully with ID: ${docRef.id}');
+
+      // Now process payment
+              await EfficientPaymentService().processListingPayment(
+        listingType: 'room_request',
+        planName: _selectedPlan,
+        amount: planPrice,
+        listingId: docRef.id,
+        context: context,
+      );
 
       // Invalidate flatmate cache to ensure fresh data
       await CacheUtils.invalidateFlatmateCache();
-
-      if (mounted) {
-        ValidationSnackBar.showSuccess(context, 'Room request submitted successfully!');
-        Navigator.of(context).pop();
-      }
+      print('Flatmate cache invalidated');
     } catch (e) {
+      print('Error submitting flatmate request: $e');
       if (mounted) {
         ValidationSnackBar.showError(context, 'Error submitting request: $e');
       }
@@ -1459,13 +1501,20 @@ class _RoomRequestFormState extends State<RoomRequestForm>
     try {
       final pickedFile = await ImagePicker().pickImage(
         source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
       );
       if (pickedFile != null) {
         setState(() {
-          _profileImage = File(pickedFile.path);
+          _profileImage = pickedFile;
         });
+        print('Image picked: ${pickedFile.path}');
+        print('Image name: ${pickedFile.name}');
+        print('Image size: ${await pickedFile.length()} bytes');
       }
     } catch (e) {
+      print('Error picking image: $e');
       ValidationSnackBar.showError(context, 'Error picking image: $e');
     }
   }
@@ -1494,17 +1543,50 @@ class _RoomRequestFormState extends State<RoomRequestForm>
                       color: BuddyTheme.primaryColor.withOpacity(0.3),
                       width: 2,
                     ),
-                    image:
-                        _profileImage != null
-                            ? DecorationImage(
-                              image: FileImage(_profileImage!),
-                              fit: BoxFit.cover,
-                            )
-                            : null,
                   ),
-                  child:
-                      _profileImage == null
-                          ? Column(
+                  child: _profileImage != null
+                      ? ClipOval(
+                          child: kIsWeb
+                              ? Image.network(
+                                  _profileImage.path,
+                                  width: 200,
+                                  height: 200,
+                              fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    print('Error loading web image: $error');
+                                    return Container(
+                                      width: 200,
+                                      height: 200,
+                                      color: cardColor,
+                                      child: Icon(
+                                        Icons.person,
+                                        size: 80,
+                                        color: BuddyTheme.primaryColor,
+                                      ),
+                                    );
+                                  },
+                                )
+                              : Image.file(
+                                  _profileImage,
+                                  width: 200,
+                                  height: 200,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    print('Error loading mobile image: $error');
+                                    return Container(
+                                      width: 200,
+                                      height: 200,
+                                      color: cardColor,
+                                      child: Icon(
+                                        Icons.person,
+                                        size: 80,
+                                        color: BuddyTheme.primaryColor,
+                                      ),
+                                    );
+                                  },
+                                ),
+                        )
+                      : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
@@ -1521,8 +1603,7 @@ class _RoomRequestFormState extends State<RoomRequestForm>
                                 ),
                               ),
                             ],
-                          )
-                          : null,
+                        ),
                 ),
               ),
             ),

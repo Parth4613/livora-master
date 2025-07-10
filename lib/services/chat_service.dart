@@ -1,10 +1,12 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../models/chat_message.dart';
 import '../api/firebase_api.dart';
 import '../services/user_service.dart';
 import '../utils/user_utils.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ChatService {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
@@ -20,7 +22,10 @@ class ChatService {
     required String receiverId,
     required String content,
   }) async {
-    if (currentUserId == null) return;
+    try {
+      if (currentUserId == null) {
+        throw Exception('User not authenticated');
+      }
 
     final message = ChatMessage(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -73,8 +78,14 @@ class ChatService {
       'lastMessageId': messageRef.key,
     });
 
-    // Trigger server-side notification
+      // Trigger server-side notification (skip on web)
+      if (!kIsWeb) {
     await _triggerServerNotification(receiverId, content, chatRoomId);
+      }
+    } catch (e) {
+      print('Error sending message: $e');
+      throw Exception('Failed to send message: $e');
+    }
   }
 
   Future<void> _triggerServerNotification(
@@ -86,23 +97,21 @@ class ChatService {
       // Get sender's name
       final senderName = await _getCurrentUserName();
       
-      // Write to Firestore to trigger Cloud Function
-      await FirebaseFirestore.instance
-          .collection('notification_requests')
-          .add({
+      // Call Cloud Function directly without saving to Firestore
+      final functions = FirebaseFunctions.instance;
+      final callable = functions.httpsCallable('sendChatNotification');
+      
+      await callable.call({
         'receiverId': receiverId,
         'senderId': currentUserId,
         'senderName': senderName,
         'message': message,
         'chatRoomId': chatRoomId,
-        'timestamp': FieldValue.serverTimestamp(),
-        'type': 'chat_message',
-        'status': 'pending',
       });
       
-      print('Server notification triggered for $receiverId');
+      print('Server notification sent for $receiverId');
     } catch (e) {
-      print('Error triggering server notification: $e');
+      print('Error sending server notification: $e');
     }
   }
 
@@ -118,6 +127,7 @@ class ChatService {
   Stream<List<ChatMessage>> getMessages(String otherUserId) {
     if (currentUserId == null) return Stream.value([]);
 
+    try {
     final List<String> ids = [currentUserId!, otherUserId];
     ids.sort();
     final String chatRoomId = ids.join('_');
@@ -155,12 +165,17 @@ class ChatService {
           messages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
           return messages;
         });
+    } catch (e) {
+      print('Error setting up messages stream: $e');
+      return Stream.value([]);
+    }
   }
 
   // Get all chat rooms for current user
   Stream<List<Map<String, dynamic>>> getChatRooms() {
     if (currentUserId == null) return Stream.value([]);
 
+    try {
     return _database
         .child('chat_rooms')
         .orderByChild('participants/$currentUserId')
@@ -209,6 +224,10 @@ class ChatService {
           });
           return chatRooms;
         });
+    } catch (e) {
+      print('Error setting up chat rooms stream: $e');
+      return Stream.value([]);
+    }
   }
 
   // Mark messages as read

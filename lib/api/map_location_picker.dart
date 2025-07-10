@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import '../utils/location_permission_helper.dart';
 
 class MapLocationPicker extends StatefulWidget {
   final LatLng? initialLocation;
@@ -42,23 +43,12 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
 
   Future<void> _getCurrentLocationInBackground() async {
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      // Do NOT request permission, just check if already granted
-      if (permission == LocationPermission.deniedForever ||
-          permission == LocationPermission.denied ||
-          permission == LocationPermission.unableToDetermine) {
-        return; // Keep the default location
-      }
-
-      // Use a timeout to prevent hanging
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 10),
-      );
+      // Use the helper to get current location with proper permission handling
+      final position = await LocationPermissionHelper.getCurrentLocation();
       
-      if (mounted) {
+      if (position != null && mounted) {
         setState(() {
-          _mapCenter = LatLng(pos.latitude, pos.longitude);
+          _mapCenter = LatLng(position.latitude, position.longitude);
         });
       }
     } catch (e) {
@@ -180,6 +170,8 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
               zoom: 11,
             ),
             onTap: _onPinDropped,
+            myLocationEnabled: false, // Disable My Location layer to prevent permission errors
+            myLocationButtonEnabled: false, // Disable My Location button
             markers: _pickedLocation == null
                 ? {}
                 : {
@@ -189,11 +181,29 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
                     ),
                   },
           ),
+          // Current location button
+          Positioned(
+            bottom: 32,
+            left: 24,
+            child: FloatingActionButton(
+              heroTag: "location_button",
+              backgroundColor: Colors.green,
+              child: Icon(Icons.my_location, color: Colors.white),
+              onPressed: () async {
+                final hasPermission = await LocationPermissionHelper.requestLocationPermission(context);
+                if (hasPermission) {
+                  _getCurrentLocationInBackground();
+                }
+              },
+            ),
+          ),
+          // Confirm button
           if (_showConfirmButton && _pickedLocation != null)
             Positioned(
               bottom: 32,
               right: 24,
               child: FloatingActionButton(
+                heroTag: "confirm_button",
                 backgroundColor: Colors.blue,
                 child: Icon(Icons.check, color: Colors.white),
                 onPressed: () {

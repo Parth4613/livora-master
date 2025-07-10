@@ -418,6 +418,8 @@ class _FeaturesMapSearchPageState extends State<FeaturesMapSearchPage> {
               zoom: 14,
             ),
             onMapCreated: (controller) => _mapController = controller,
+            myLocationEnabled: false, // Disable My Location layer to prevent permission errors
+            myLocationButtonEnabled: false, // Disable My Location button
             markers: _markers,
             circles: {
               Circle(

@@ -7,6 +7,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'main.dart'; // Add this import
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/search_cache_service.dart';
+import 'package:shimmer/shimmer.dart';
 
 class NeedRoomPage extends StatefulWidget {
   const NeedRoomPage({Key? key}) : super(key: key);
@@ -63,6 +64,7 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
 
   List<Map<String, dynamic>> _rooms = []; // <-- Now fetched from Firebase
   bool _isLoading = true;
+  int? _hoveredRoomCardIndex;
 
   @override
   void initState() {
@@ -514,47 +516,43 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
 
   Widget _buildRoomsGrid() {
     if (kIsWeb) {
-      // Optimized card size for web
       const double cardSpacing = 20.0;
-      const double cardHeight = 220.0;
-      const double gridHeight = (cardHeight * 2) + cardSpacing;
-      const double cardAspectRatio = 0.8;
-
-      return SizedBox(
-        height: gridHeight,
-        child: GridView.builder(
+      const int crossAxisCount = 3;
+      final double gridWidth = MediaQuery.of(context).size.width - (BuddyTheme.spacingMd * 2);
+      final double cardSize = (gridWidth - (cardSpacing * (crossAxisCount - 1))) / crossAxisCount;
+      if (_filteredRooms.length < 3) {
+        // Left-align 1 or 2 cards
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: List.generate(_filteredRooms.length, (index) {
+              final room = _filteredRooms[index];
+              return Padding(
+                padding: EdgeInsets.only(right: index < _filteredRooms.length - 1 ? cardSpacing : 0),
+                child: _buildRoomCardWeb(room, index, cardSize),
+              );
+            }),
+          ),
+        );
+      } else {
+        // 3 or more: use grid
+        return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            childAspectRatio: cardAspectRatio,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: 320 / 200,
             crossAxisSpacing: cardSpacing,
             mainAxisSpacing: cardSpacing,
           ),
-          itemCount: 6, // Always show 6 slots
+          itemCount: _filteredRooms.length,
           itemBuilder: (context, index) {
-            if (index < _filteredRooms.length) {
-              final room = _filteredRooms[index];
-              return _buildRoomCard(
-                room,
-                const Color(0xFF23262F),
-                Colors.white12,
-                Colors.white38,
-                Colors.white,
-                Colors.white70,
-                const Color(0xFF64B5F6),
-                const Color(0xFF90CAF9),
-                const Color(0xFF181A20),
-                const Color(0xFF81C784),
-                const Color(0xFFFFB74D),
-              );
-            } else {
-              // Reserve space for empty slot
-              return Container();
-            }
+            final room = _filteredRooms[index];
+            return _buildRoomCardWeb(room, index, cardSize);
           },
-        ),
-      );
+        );
+      }
     } else {
       // Mobile layout: single column
       return Column(
@@ -657,6 +655,125 @@ class _NeedRoomPageState extends State<NeedRoomPage> with RouteAware {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRoomCardWeb(Map<String, dynamic> room, int index, double cardSize) {
+    final double cardWidth = 320.0;
+    final double imageHeight = 140.0;
+    // Get the image URL from the firstPhoto field or try to find one from uploadedPhotos
+    String? imageUrl = room['firstPhoto'] as String?;
+    if (imageUrl == null && room['uploadedPhotos'] != null) {
+      final photos = room['uploadedPhotos'];
+      if (photos is Map<String, dynamic>) {
+        for (final categoryPhotos in photos.values) {
+          if (categoryPhotos is List && categoryPhotos.isNotEmpty) {
+            imageUrl = categoryPhotos[0] as String;
+            break;
+          }
+        }
+      } else if (photos is List) {
+        if (photos.isNotEmpty) {
+          imageUrl = photos[0].toString();
+        }
+      }
+    }
+    if (imageUrl == null && room['imageUrl'] != null && room['imageUrl'].toString().isNotEmpty) {
+      imageUrl = room['imageUrl'].toString();
+    }
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredRoomCardIndex = index),
+      onExit: (_) => setState(() => _hoveredRoomCardIndex = null),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            '/propertyDetails',
+            arguments: {'propertyId': room['id']},
+          );
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          transform: _hoveredRoomCardIndex == index ? (Matrix4.identity()..scale(1.04)) : Matrix4.identity(),
+          decoration: BoxDecoration(
+            color: const Color(0xFF23262F),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: _hoveredRoomCardIndex == index ? 32 : 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          width: cardWidth,
+          margin: const EdgeInsets.only(bottom: 32.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(18),
+                  topRight: Radius.circular(18),
+                ),
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl ?? '',
+                  height: imageHeight,
+                  width: cardWidth,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Shimmer.fromColors(
+                    baseColor: Colors.white12,
+                    highlightColor: const Color(0xFF23262F),
+                    child: Container(color: Colors.white12, height: imageHeight, width: cardWidth),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.white12,
+                    height: imageHeight,
+                    width: cardWidth,
+                    child: Icon(
+                      Icons.image_not_supported_outlined,
+                      color: Colors.white38,
+                      size: 40,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      room['title'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 17.0,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4.0),
+                    Text(
+                      room['location'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 13.0,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

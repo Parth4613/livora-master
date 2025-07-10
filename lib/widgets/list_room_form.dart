@@ -14,6 +14,8 @@ import 'location_autocomplete_field.dart';
 import 'validation_widgets.dart';
 import '../utils/user_utils.dart';
 import '../utils/cache_utils.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../services/efficient_payment_service.dart';
 
 class ListRoomForm extends StatefulWidget {
   const ListRoomForm({Key? key}) : super(key: key);
@@ -254,6 +256,13 @@ class _ListRoomFormState extends State<ListRoomForm>
   void _submitForm() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
 
+    // Get the plan price
+    final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
+    if (planPrice <= 0) {
+      ValidationSnackBar.showError(context, 'Invalid plan price');
+      return;
+    }
+
     // Calculate expiry date based on selected plan
     Duration planDuration;
     switch (_selectedPlan) {
@@ -314,13 +323,15 @@ class _ListRoomFormState extends State<ListRoomForm>
           FieldValue.serverTimestamp(), // Use server timestamp instead of client time
       'selectedPlan': _selectedPlan,
       'expiryDate': expiryDate.toIso8601String(),
-      'visibility': true, // Always true on creation,
+      'visibility': false, // Set to false initially, will be true after payment
+      'paymentStatus': 'pending',
       'sharePhoneNumber': _sharePhoneNumber,
       'latitude': _pickedLocation?.latitude,
       'longitude': _pickedLocation?.longitude,
     };
 
     try {
+      // First, create the listing with pending payment status
       final newRoomDocRef = await FirebaseFirestore.instance
           .collection('room_listings')
           .add(data);
@@ -340,11 +351,17 @@ class _ListRoomFormState extends State<ListRoomForm>
             }, SetOptions(merge: true));
       }
 
+      // Now process payment
+              await EfficientPaymentService().processListingPayment(
+        listingType: 'list_room',
+        planName: _selectedPlan,
+        amount: planPrice,
+        listingId: newRoomDocId,
+        context: context,
+      );
+
       // Invalidate room cache to ensure fresh data
       await CacheUtils.invalidateRoomCache();
-
-      ValidationSnackBar.showSuccess(context, 'Room listing submitted successfully!');
-      Navigator.pop(context);
     } catch (e) {
       ValidationSnackBar.showError(context, 'Failed to submit: $e');
     }
@@ -367,7 +384,7 @@ class _ListRoomFormState extends State<ListRoomForm>
       });
 
       // Upload to Firebase Storage
-      String firebaseUrl = await FirebaseStorageService.uploadImage(image.path);
+      String firebaseUrl = await FirebaseStorageService.uploadImage(kIsWeb ? image : image.path);
 
       if (!mounted) return;
       setState(() {

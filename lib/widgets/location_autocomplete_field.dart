@@ -123,14 +123,23 @@ class _LocationAutocompleteFieldState extends State<LocationAutocompleteField> {
   }
 
   void _onSuggestionSelected(AutocompleteResult result) {
-    widget.controller.text = result.formattedAddress;
+    print('[Autocomplete] Setting text to: \'${result.formattedAddress}\'');
+    widget.controller.value = widget.controller.value.copyWith(
+      text: result.formattedAddress,
+      selection: TextSelection.collapsed(offset: result.formattedAddress.length),
+      composing: TextRange.empty,
+    );
+    setState(() {}); // Force rebuild for web
     widget.onLocationSelected?.call(result);
     
     setState(() {
       _showSuggestions = false;
       _suggestions = [];
     });
-    _focusNode.unfocus();
+    // Delay unfocus to ensure text is visible on web
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted) _focusNode.unfocus();
+    });
     _resetSession(); // Reset session after selection
   }
 

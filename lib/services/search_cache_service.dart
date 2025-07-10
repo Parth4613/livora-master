@@ -38,7 +38,23 @@ class SearchCacheService {
       final cachedData = prefs.getString(dataKey);
       if (cachedData != null) {
         final List<dynamic> decoded = jsonDecode(cachedData);
-        return decoded.cast<Map<String, dynamic>>();
+        final List<Map<String, dynamic>> result = [];
+        
+        for (final item in decoded) {
+          final Map<String, dynamic> processedItem = {};
+          (item as Map<String, dynamic>).forEach((key, value) {
+            // Convert milliseconds back to DateTime for timestamp fields
+            if ((key == 'createdAt' || key == 'expiryDate' || key == 'timestamp') && 
+                value is int) {
+              processedItem[key] = DateTime.fromMillisecondsSinceEpoch(value);
+            } else {
+              processedItem[key] = value;
+            }
+          });
+          result.add(processedItem);
+        }
+        
+        return result;
       }
     } catch (e) {
       print('Error reading cache: $e');
@@ -56,8 +72,21 @@ class SearchCacheService {
       // Save timestamp
       await prefs.setInt(timestampKey, DateTime.now().millisecondsSinceEpoch);
       
+      // Convert Timestamp objects to milliseconds for serialization
+      final serializableData = data.map((item) {
+        final Map<String, dynamic> serializableItem = {};
+        item.forEach((key, value) {
+          if (value is Timestamp) {
+            serializableItem[key] = value.millisecondsSinceEpoch;
+          } else {
+            serializableItem[key] = value;
+          }
+        });
+        return serializableItem;
+      }).toList();
+      
       // Save data
-      final encodedData = jsonEncode(data);
+      final encodedData = jsonEncode(serializableData);
       await prefs.setString(dataKey, encodedData);
     } catch (e) {
       print('Error saving to cache: $e');

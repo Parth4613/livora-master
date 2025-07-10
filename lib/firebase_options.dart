@@ -47,6 +47,7 @@ class DefaultFirebaseOptions {
     projectId: 'application-livora',
     authDomain: 'application-livora.firebaseapp.com',
     storageBucket: 'application-livora.firebasestorage.app',
+    databaseURL: 'https://application-livora-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -55,6 +56,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '796925603688',
     projectId: 'application-livora',
     storageBucket: 'application-livora.firebasestorage.app',
+    databaseURL: 'https://application-livora-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -63,6 +65,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '796925603688',
     projectId: 'application-livora',
     storageBucket: 'application-livora.firebasestorage.app',
+    databaseURL: 'https://application-livora-default-rtdb.firebaseio.com',
     androidClientId: '796925603688-5lprk88iopc4c101vgjlhkrgrukf79uc.apps.googleusercontent.com',
     iosClientId: '796925603688-7ilf2994vs7qfmb3qkvltqike72c4sof.apps.googleusercontent.com',
     iosBundleId: 'com.example.buddy',
@@ -74,6 +77,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '796925603688',
     projectId: 'application-livora',
     storageBucket: 'application-livora.firebasestorage.app',
+    databaseURL: 'https://application-livora-default-rtdb.firebaseio.com',
     androidClientId: '796925603688-5lprk88iopc4c101vgjlhkrgrukf79uc.apps.googleusercontent.com',
     iosClientId: '796925603688-7ilf2994vs7qfmb3qkvltqike72c4sof.apps.googleusercontent.com',
     iosBundleId: 'com.example.buddy',
@@ -86,6 +90,7 @@ class DefaultFirebaseOptions {
     projectId: 'application-livora',
     authDomain: 'application-livora.firebaseapp.com',
     storageBucket: 'application-livora.firebasestorage.app',
+    databaseURL: 'https://application-livora-default-rtdb.firebaseio.com',
   );
 
 }

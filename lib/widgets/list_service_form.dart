@@ -13,6 +13,8 @@ import '../api/maptiler_autocomplete.dart';
 import 'validation_widgets.dart';
 import '../utils/user_utils.dart';
 import '../utils/cache_utils.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../services/efficient_payment_service.dart';
 
 class ListServiceForm extends StatefulWidget {
   const ListServiceForm({Key? key}) : super(key: key);
@@ -321,6 +323,14 @@ class _ListServiceFormState extends State<ListServiceForm>
 
   void _submitForm() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
+    
+    // Get the plan price
+    final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
+    if (planPrice <= 0) {
+      ValidationSnackBar.showError(context, 'Invalid plan price');
+      return;
+    }
+    
     // Plan-based expiry logic
     Duration planDuration;
     switch (_selectedPlan) {
@@ -398,12 +408,14 @@ class _ListServiceFormState extends State<ListServiceForm>
       },
       'selectedPlan': _selectedPlan,
       'expiryDate': expiryDate.toIso8601String(),
-      'visibility': true,
+      'visibility': false, // Set to false initially, will be true after payment
+      'paymentStatus': 'pending',
       'latitude': _pickedLocation?.latitude,
       'longitude': _pickedLocation?.longitude,
     };
 
     try {
+      // First, create the listing with pending payment status
       final newServiceDocRef = await FirebaseFirestore.instance.collection('service_listings').add(data);
       final newServiceDocId = newServiceDocRef.id;
       final geo = GeoFlutterFire();
@@ -420,11 +432,17 @@ class _ListServiceFormState extends State<ListServiceForm>
             }, SetOptions(merge: true));
       }
 
+      // Now process payment
+              await EfficientPaymentService().processListingPayment(
+        listingType: 'list_service',
+        planName: _selectedPlan,
+        amount: planPrice,
+        listingId: newServiceDocId,
+        context: context,
+      );
+
       // Invalidate service cache to ensure fresh data
       await CacheUtils.invalidateServiceCache();
-
-      ValidationSnackBar.showSuccess(context, 'Service listing submitted successfully!');
-      Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
     } catch (e) {
       ValidationSnackBar.showError(context, 'Failed to submit: $e');
     }
@@ -1619,7 +1637,7 @@ class _ListServiceFormState extends State<ListServiceForm>
         ),
       );
       try {
-        String url = await FirebaseStorageService.uploadImage(image.path);
+        String url = await FirebaseStorageService.uploadImage(kIsWeb ? image : image.path);
         setState(() {
           _coverPhotoUrl = url;
         });
@@ -1643,7 +1661,7 @@ class _ListServiceFormState extends State<ListServiceForm>
         ),
       );
       try {
-        String url = await FirebaseStorageService.uploadImage(image.path);
+        String url = await FirebaseStorageService.uploadImage(kIsWeb ? image : image.path);
         setState(() {
           _additionalPhotoUrls.add(url);
         });

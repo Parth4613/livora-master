@@ -30,6 +30,7 @@ class _ServicesPageState extends State<ServicesPage> {
 
   List<Map<String, dynamic>> _services = [];
   bool _isLoading = true;
+  int? _hoveredServiceCardIndex;
 
   @override
   void initState() {
@@ -353,57 +354,43 @@ class _ServicesPageState extends State<ServicesPage> {
 
   Widget _buildServicesGrid() {
     if (kIsWeb) {
-      // Optimized card size for web
       const double cardSpacing = 20.0;
-      const double cardHeight = 220.0;
-      const double gridHeight = (cardHeight * 2) + cardSpacing;
-      const double cardAspectRatio = 0.8;
-
-      return SizedBox(
-        height: gridHeight,
-        child: GridView.builder(
+      const int crossAxisCount = 3;
+      final double gridWidth = MediaQuery.of(context).size.width - (BuddyTheme.spacingMd * 2);
+      final double cardSize = (gridWidth - (cardSpacing * (crossAxisCount - 1))) / crossAxisCount;
+      if (_filteredServices.length < 3) {
+        // Left-align 1 or 2 cards
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: List.generate(_filteredServices.length, (index) {
+              final service = _filteredServices[index];
+              return Padding(
+                padding: EdgeInsets.only(right: index < _filteredServices.length - 1 ? cardSpacing : 0),
+                child: _buildServiceCardWeb(context, service, index, cardSize),
+              );
+            }),
+          ),
+        );
+      } else {
+        // 3 or more: use grid
+        return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            childAspectRatio: cardAspectRatio,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: 320 / 200,
             crossAxisSpacing: cardSpacing,
             mainAxisSpacing: cardSpacing,
           ),
-          itemCount: 6, // Always show 6 slots
+          itemCount: _filteredServices.length,
           itemBuilder: (context, index) {
-            if (index < _filteredServices.length) {
-              final service = _filteredServices[index];
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              final Color cardColor = isDark ? const Color(0xFF23262F) : Colors.white;
-              final Color textPrimary = isDark ? Colors.white : const Color(0xFF2D3748);
-              final Color textSecondary = isDark ? Colors.white70 : const Color(0xFF718096);
-              final Color textLight = isDark ? Colors.white38 : const Color(0xFFA0AEC0);
-              final Color borderColor = isDark ? Colors.white12 : const Color(0xFFE2E8F0);
-              final Color accentColor = isDark ? const Color(0xFF64B5F6) : const Color(0xFF4299E1);
-              final Color primaryColor = isDark ? const Color(0xFF90CAF9) : const Color(0xFF2D3748);
-              final Color successColor = isDark ? const Color(0xFF81C784) : const Color(0xFF48BB78);
-              final Color warningColor = isDark ? const Color(0xFFFFB74D) : const Color(0xFFED8936);
-              return _buildServiceCard(
-                service,
-                cardColor,
-                borderColor,
-                textLight,
-                textPrimary,
-                textSecondary,
-                accentColor,
-                primaryColor,
-                successColor,
-                warningColor,
-                Theme.of(context).scaffoldBackgroundColor,
-              );
-            } else {
-              // Reserve space for empty slot
-              return Container();
-            }
+            final service = _filteredServices[index];
+            return _buildServiceCardWeb(context, service, index, cardSize);
           },
-        ),
-      );
+        );
+      }
     } else {
       // Mobile layout: single column
       final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -441,6 +428,222 @@ class _ServicesPageState extends State<ServicesPage> {
             .toList(),
       );
     }
+  }
+
+  Widget _buildServiceCardWeb(BuildContext context, Map<String, dynamic> service, int index, double cardSize) {
+    final double cardWidth = 320.0;
+    final double imageHeight = 140.0;
+    final double padding = 16.0;
+    final double badgePadding = 8.0;
+    final double iconSize = 18.0;
+    final String? imageUrl = service['imageUrl'] as String?;
+    final String serviceType = (service['serviceType'] ?? '').toString();
+    final String address = (service['address'] ?? '').toString();
+    final String timings = (service['timings'] ?? service['timing'] ?? service['openingTime'] ?? '') + (service['closingTime'] != null ? ' - ${service['closingTime']}' : '');
+    final String closedDay = (service['offDay'] ?? '').toString();
+    final bool isClosedToday = closedDay.isNotEmpty && closedDay.toLowerCase() == ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][DateTime.now().weekday % 7];
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredServiceCardIndex = index),
+      onExit: (_) => setState(() => _hoveredServiceCardIndex = null),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ServiceDetailsScreen(serviceId: service['key']),
+            ),
+          );
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          transform: _hoveredServiceCardIndex == index ? (Matrix4.identity()..scale(1.04)) : Matrix4.identity(),
+          decoration: BoxDecoration(
+            color: const Color(0xFF23262F),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: _hoveredServiceCardIndex == index ? 32 : 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          width: cardWidth,
+          margin: const EdgeInsets.only(bottom: 32.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
+                    ),
+                    child: imageUrl != null && imageUrl.isNotEmpty
+                        ? Image.network(
+                            imageUrl,
+                            height: imageHeight,
+                            width: cardWidth,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            color: Colors.white12,
+                            height: imageHeight,
+                            width: cardWidth,
+                            child: Icon(
+                              Icons.image_not_supported_outlined,
+                              color: Colors.white38,
+                              size: 40,
+                            ),
+                          ),
+                  ),
+                  // Service type badge
+                  if (serviceType.isNotEmpty)
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: badgePadding,
+                          vertical: badgePadding / 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF90CAF9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          serviceType.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              Padding(
+                padding: EdgeInsets.all(padding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      service['serviceName'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 18.0,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (serviceType.isNotEmpty) ...[
+                      const SizedBox(height: 4.0),
+                      Text(
+                        serviceType,
+                        style: const TextStyle(
+                          fontSize: 15.0,
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (address.isNotEmpty) ...[
+                      const SizedBox(height: 8.0),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on_outlined, color: Colors.white38, size: 18),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              address,
+                              style: const TextStyle(
+                                fontSize: 14.0,
+                                color: Colors.white70,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (timings.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8.0),
+                      Row(
+                        children: [
+                          const Icon(Icons.access_time, color: Colors.white38, size: 18),
+                          const SizedBox(width: 4),
+                          Text(
+                            timings,
+                            style: const TextStyle(
+                              fontSize: 14.0,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (closedDay.isNotEmpty) ...[
+                      const SizedBox(height: 8.0),
+                      Row(
+                        children: [
+                          const Icon(Icons.event_busy, color: Color(0xFFFFB74D), size: 18),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Closed on $closedDay',
+                            style: const TextStyle(
+                              fontSize: 14.0,
+                              color: Color(0xFFFFB74D),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 16.0),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ServiceDetailsScreen(serviceId: service['key']),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF64B5F6),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14.0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'View Details',
+                          style: TextStyle(
+                            fontSize: 16.0,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildServiceCard(

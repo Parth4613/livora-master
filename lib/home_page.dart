@@ -323,6 +323,8 @@ class _HomePageState extends State<HomePage>
                       _buildWebNavItem(0, Icons.home, 'Home', true),
                       _buildWebNavItem(1, Icons.hotel, 'Need Room', false),
                       _buildWebNavItem(2, Icons.group, 'Need Flatmate', false),
+                      _buildWebNavItem(5, Icons.apartment, 'Need Hostel/PGs', false),
+                      _buildWebNavItem(6, Icons.room_service, 'Explore Services', false),
                       _buildWebNavItem(3, Icons.person, 'Profile', false),
                       // Add Search Nearby button to sidebar
                       _buildWebNavItem(4, Icons.location_on, 'Search Nearby', false),
@@ -335,6 +337,7 @@ class _HomePageState extends State<HomePage>
                   child: Container(
                     decoration: BuddyTheme.fabShadowDecoration,
                     child: FloatingActionButton(
+                      heroTag: "web_fab",
                       onPressed: () => _showActionSheet(context),
                       backgroundColor: BuddyTheme.primaryColor,
                       shape: const CircleBorder(),
@@ -382,6 +385,16 @@ class _HomePageState extends State<HomePage>
           } else {
             _handleSearchNearby(context);
           }
+        } else if (index == 5) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => HostelpgPage()),
+          );
+        } else if (index == 6) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => ServicesPage()),
+          );
         } else {
           widget.onTabChange?.call(index);
         }
@@ -416,7 +429,7 @@ class _HomePageState extends State<HomePage>
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MapLocationPicker(),
+        builder: (context) => MapLocationPicker(showRadiusPicker: true),
       ),
     );
     if (result != null && result is Map && result['location'] != null && result['radius'] != null) {
@@ -1176,7 +1189,7 @@ class _HomePageState extends State<HomePage>
             final result = await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => MapLocationPicker(),
+                builder: (context) => MapLocationPicker(showRadiusPicker: true),
               ),
             );
             if (result != null && result is Map && result['location'] != null && result['radius'] != null) {
@@ -1298,7 +1311,7 @@ class _HomePageState extends State<HomePage>
                     final result = await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => MapLocationPicker(),
+                        builder: (context) => MapLocationPicker(showRadiusPicker: true),
                       ),
                     );
                     if (result != null && result is Map && result['location'] != null && result['radius'] != null) {
@@ -2244,6 +2257,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? Container(
                     decoration: BuddyTheme.fabShadowDecoration,
                     child: FloatingActionButton(
+                      heroTag: "mobile_fab",
                       onPressed: () => _showActionSheet(context),
                       backgroundColor: BuddyTheme.primaryColor,
                       shape: const CircleBorder(),

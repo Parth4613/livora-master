@@ -1,6 +1,6 @@
 const {setGlobalOptions} = require("firebase-functions");
 const {onRequest} = require("firebase-functions/v2/https");
-const {onDocumentCreated} = require("firebase-functions/v2/firestore");
+const {onRequest, onCall} = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 
 // Initialize Firebase Admin
@@ -22,43 +22,44 @@ const messaging = admin.messaging();
 // this will be the maximum concurrent request count.
 setGlobalOptions({ maxInstances: 10 });
 
-// Cloud Function to send FCM notifications when a notification request is created
-exports.sendChatNotification = onDocumentCreated(
-  "notification_requests/{requestId}",
-  async (event) => {
+// Callable function to send chat notifications directly without saving to Firestore
+exports.sendChatNotification = onCall(
+  { maxInstances: 10 },
+  async (request) => {
     try {
-      const notificationData = event.data.data();
+      const { receiverId, senderId, senderName, message, chatRoomId } = request.data;
       
-      // Check if this is a chat message notification
-      if (notificationData.type !== 'chat_message') {
-        logger.info('Not a chat message notification, skipping');
-        return null;
+      // Validate required parameters
+      if (!receiverId || !senderId || !senderName || !message || !chatRoomId) {
+        throw new Error('Missing required parameters: receiverId, senderId, senderName, message, chatRoomId');
       }
-
-      const {
-        receiverId,
-        senderId,
-        senderName,
-        message,
-        chatRoomId
-      } = notificationData;
 
       logger.info(`Sending notification to ${receiverId} from ${senderName}`);
 
-      // Get the receiver's FCM token from Firestore
+      // Get the receiver's data from Firestore
       const receiverDoc = await db.collection('users').doc(receiverId).get();
       
       if (!receiverDoc.exists) {
         logger.info(`Receiver ${receiverId} not found`);
-        return null;
+        return { success: false, error: 'Receiver not found' };
       }
 
       const receiverData = receiverDoc.data();
+      
+      // Check if receiver is currently in a chat with the sender
+      if (receiverData.isOnline && receiverData.currentChatRoom) {
+        const currentChatRoom = receiverData.currentChatRoom;
+        if (currentChatRoom.includes(senderId)) {
+          logger.info(`Receiver ${receiverId} is currently in chat with ${senderId}, skipping notification`);
+          return { success: true, skipped: true, reason: 'User is in chat with sender' };
+        }
+      }
+      
       const fcmToken = receiverData.fcmToken;
 
       if (!fcmToken) {
         logger.info(`No FCM token found for receiver ${receiverId}`);
-        return null;
+        return { success: false, error: 'Receiver has no FCM token' };
       }
 
       // Prepare the notification message
@@ -98,25 +99,10 @@ exports.sendChatNotification = onDocumentCreated(
       const response = await messaging.send(notificationMessage);
       logger.info(`Successfully sent notification: ${response}`);
 
-      // Update the notification request status
-      await event.data.ref.update({
-        status: 'sent',
-        sentAt: admin.firestore.FieldValue.serverTimestamp(),
-        fcmResponse: response,
-      });
-
-      return response;
+      return { success: true, messageId: response };
     } catch (error) {
       logger.error('Error sending notification:', error);
-      
-      // Update the notification request with error status
-      await event.data.ref.update({
-        status: 'error',
-        error: error.message,
-        errorAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      throw error;
+      throw new Error(`Failed to send notification: ${error.message}`);
     }
   }
 );

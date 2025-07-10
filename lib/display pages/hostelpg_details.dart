@@ -63,22 +63,43 @@ class _FullScreenImageGalleryState extends State<FullScreenImageGallery> {
               },
               itemCount: widget.images.length,
               itemBuilder: (context, index) {
-                return InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 3.0,
-                  child: Center(
+                return Center(
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 3.0,
                     child: Image.network(
                       widget.images[index],
                       fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                color: Colors.white,
+                                size: 48,
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'Failed to load image',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
                         return Center(
                           child: CircularProgressIndicator(
-                            value:
-                                loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
-                                    : null,
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
                             color: Colors.white,
                           ),
                         );
@@ -97,7 +118,7 @@ class _FullScreenImageGalleryState extends State<FullScreenImageGallery> {
               backgroundColor: Colors.transparent,
               elevation: 0,
               leading: IconButton(
-                icon: const Icon(Icons.close),
+                icon: const Icon(Icons.close, color: Colors.white),
                 onPressed: () => Navigator.pop(context),
               ),
               title: Text(
@@ -110,6 +131,53 @@ class _FullScreenImageGalleryState extends State<FullScreenImageGallery> {
               centerTitle: true,
             ),
           ),
+          // Navigation arrows for web
+          if (widget.images.length > 1) ...[
+            Positioned(
+              left: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: IconButton(
+                  icon: Icon(
+                    Icons.chevron_left,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                  onPressed: currentIndex > 0
+                      ? () {
+                          _pageController.previousPage(
+                            duration: Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        }
+                      : null,
+                ),
+              ),
+            ),
+            Positioned(
+              right: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: IconButton(
+                  icon: Icon(
+                    Icons.chevron_right,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                  onPressed: currentIndex < widget.images.length - 1
+                      ? () {
+                          _pageController.nextPage(
+                            duration: Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        }
+                      : null,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1205,28 +1273,20 @@ class _HostelDetailsScreenState extends State<HostelDetailsScreen> {
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: BuddyTheme.primaryColor.withOpacity(0.1),
-                    child: Icon(Icons.person, color: BuddyTheme.primaryColor),
-                  ),
-                  const SizedBox(width: BuddyTheme.spacingMd),
-                  Text(
-                    hostelData.contactPerson,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: textPrimary,
-                    ),
-                  ),
-                ],
+              CircleAvatar(
+                backgroundColor: BuddyTheme.primaryColor.withOpacity(0.1),
+                child: Icon(Icons.person, color: BuddyTheme.primaryColor),
               ),
-              const SizedBox(height: BuddyTheme.spacingMd),
-              _buildContactItem(Icons.phone, hostelData.phone),
-              _buildContactItem(Icons.email, hostelData.email),
+              const SizedBox(width: BuddyTheme.spacingMd),
+              Text(
+                hostelData.contactPerson,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: textPrimary,
+                ),
+              ),
             ],
           ),
         ),

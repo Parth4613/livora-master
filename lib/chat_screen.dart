@@ -65,6 +65,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _setupChatRoom() {
+    try {
     // Create chat room ID
     final List<String> ids = [FirebaseAuth.instance.currentUser!.uid, widget.otherUserId];
     ids.sort();
@@ -76,11 +77,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     
     // Mark messages as read when entering chat
     _markMessagesAsRead();
+    } catch (e) {
+      print('Error setting up chat room: $e');
+    }
   }
 
   Future<void> _markMessagesAsRead() async {
+    try {
     if (_currentChatRoomId != null) {
       await _chatService.markMessagesAsRead(_currentChatRoomId!);
+      }
+    } catch (e) {
+      print('Error marking messages as read: $e');
     }
   }
 

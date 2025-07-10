@@ -1,15 +1,74 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../premium_plans_page.dart';
 
-class PremiumPlanPromptSheet extends StatelessWidget {
+class PremiumPlanPromptSheet extends StatefulWidget {
   const PremiumPlanPromptSheet({Key? key}) : super(key: key);
+
+  @override
+  State<PremiumPlanPromptSheet> createState() => _PremiumPlanPromptSheetState();
+}
+
+class _PremiumPlanPromptSheetState extends State<PremiumPlanPromptSheet> {
+  Map<String, double> premiumPrices = {
+    'Express Hunt': 29.0,
+    'Prime Seeker': 49.0,
+    'Precision Pro': 99.0,
+  };
+  bool pricesLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPremiumPrices();
+  }
+
+  Future<void> _fetchPremiumPrices() async {
+    setState(() {
+      pricesLoading = true;
+    });
+
+    try {
+      // Map plan names to Firestore document IDs
+      final planMapping = {
+        'Express Hunt': 'express_hunt',
+        'Prime Seeker': 'prime_seeker',
+        'Precision Pro': 'precision_pro',
+      };
+
+      for (final entry in planMapping.entries) {
+        final planName = entry.key;
+        final docId = entry.value;
+        
+        final doc = await FirebaseFirestore.instance
+            .collection('premium_plans')
+            .doc(docId)
+            .get();
+        
+        if (doc.exists) {
+          final data = doc.data()!;
+          final price = (data['price'] as num?)?.toDouble() ?? 
+                       (data['actual_price'] as num?)?.toDouble() ?? 
+                       premiumPrices[planName] ?? 0.0;
+          premiumPrices[planName] = price;
+        }
+      }
+    } catch (e) {
+      // Keep default prices if fetch fails
+      print('Error fetching premium prices: $e');
+    } finally {
+      setState(() {
+        pricesLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final plans = [
       {
         'title': 'Express Hunt',
-        'price': '₹29',
+        'price': '₹${premiumPrices['Express Hunt']?.toInt() ?? 29}',
         'tagline': 'Quick access. Fast results. Start your property hunt today.',
         'features': ['Unlimited Chat & Call access for 7 Days'],
         'color': Colors.lightBlueAccent,
@@ -17,7 +76,7 @@ class PremiumPlanPromptSheet extends StatelessWidget {
       },
       {
         'title': 'Prime Seeker',
-        'price': '₹49',
+        'price': '₹${premiumPrices['Prime Seeker']?.toInt() ?? 49}',
         'tagline': 'Unlock a full month of seamless connections and smarter searches.',
         'features': ['Unlimited Chat & Call access for 1 Month'],
         'color': Colors.green,
@@ -25,7 +84,7 @@ class PremiumPlanPromptSheet extends StatelessWidget {
       },
       {
         'title': 'Precision Pro',
-        'price': '₹99',
+        'price': '₹${premiumPrices['Precision Pro']?.toInt() ?? 99}',
         'tagline': 'Search exactly where you want. Connect with who you need.',
         'features': [
           'Pin Drop & Radius Search feature for hyper-targeted browsing',
@@ -71,12 +130,19 @@ class PremiumPlanPromptSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            ...plans.map((plan) => _PlanPreviewCard(plan: plan, onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => const PremiumPlansPage(),
-              ));
-            })).toList(),
+            if (pricesLoading)
+              const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            else
+              ...plans.map((plan) => _PlanPreviewCard(plan: plan, onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const PremiumPlansPage(),
+                ));
+              })).toList(),
             const SizedBox(height: 12),
             Text(
               'Select a plan to see more details and purchase.',

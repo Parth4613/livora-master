@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../theme.dart';
 import '../chat_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/user_service.dart';
 import '../widgets/premium_plan_prompt_sheet.dart';
+import '../utils/cache_utils.dart';
 
 class FlatmateDetailsPage extends StatefulWidget {
   final Map<String, dynamic> flatmateData;
@@ -108,20 +110,29 @@ class _FlatmateDetailsPageState extends State<FlatmateDetailsPage> {
   }
 
   Widget _buildProfileHeader(ThemeData theme) {
-    // Use this for all cardColor assignments in your widgets
     final isDark = theme.brightness == Brightness.dark;
-    final cardColor =
-        isDark
+    final cardColor = isDark
             ? Color.alphaBlend(
               Colors.white.withOpacity(0.06),
               theme.cardColor,
-            ) // lighter in dark mode
+        )
             : Color.alphaBlend(
               Colors.black.withOpacity(0.04),
               theme.cardColor,
-            ); // darker in light mode
+        );
     final textPrimary = theme.textTheme.bodyLarge?.color ?? Colors.black;
     final textSecondary = theme.textTheme.bodyMedium?.color ?? Colors.black54;
+
+    // Debug logging for image URL
+    final String? imageUrl = widget.flatmateData['profilePhotoUrl'] as String?;
+    print('Flatmate Details photo URL: $imageUrl');
+    print('Flatmate Details data: ${widget.flatmateData.toString()}');
+
+    // Validate and fix the image URL
+    final String? validatedImageUrl = CacheUtils.validateImageUrl(imageUrl);
+    if (validatedImageUrl != imageUrl) {
+      print('Flatmate Details Image URL validated/fixed: $validatedImageUrl');
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -131,25 +142,99 @@ class _FlatmateDetailsPageState extends State<FlatmateDetailsPage> {
       padding: const EdgeInsets.all(BuddyTheme.spacingMd),
       child: Row(
         children: [
-          CircleAvatar(
+          validatedImageUrl != null && validatedImageUrl.isNotEmpty
+              ? FutureBuilder<bool>(
+                  future: CacheUtils.isImageUrlAccessible(validatedImageUrl),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: BuddyTheme.secondaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    
+                    final isAccessible = snapshot.data ?? false;
+                    if (!isAccessible) {
+                      print('Flatmate details image not accessible, showing placeholder');
+                      return CircleAvatar(
             radius: 40,
             backgroundColor: BuddyTheme.secondaryColor,
-            backgroundImage:
-                widget.flatmateData['profilePhotoUrl'] != null
-                    ? NetworkImage(widget.flatmateData['profilePhotoUrl'])
-                    : null,
-            child:
-                widget.flatmateData['profilePhotoUrl'] == null
-                    ? Text(
-                      widget.flatmateData['name']?.substring(0, 1).toUpperCase() ??
-                          'U',
+                        child: Text(
+                          widget.flatmateData['name']?.substring(0, 1).toUpperCase() ?? 'U',
+                          style: TextStyle(
+                            fontSize: BuddyTheme.fontSizeXl,
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSecondary,
+                          ),
+                        ),
+                      );
+                    }
+                    
+                    return ClipOval(
+                      child: CachedNetworkImage(
+                        imageUrl: validatedImageUrl,
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          width: 80,
+                          height: 80,
+                          color: BuddyTheme.secondaryColor,
+                          child: Text(
+                            widget.flatmateData['name']?.substring(0, 1).toUpperCase() ?? 'U',
+                            style: TextStyle(
+                              fontSize: BuddyTheme.fontSizeXl,
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onSecondary,
+                            ),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) {
+                          print('Flatmate Details CachedNetworkImage error for URL: $url');
+                          print('Error: $error');
+                          return Container(
+                            width: 80,
+                            height: 80,
+                            color: BuddyTheme.secondaryColor,
+                            child: Text(
+                              widget.flatmateData['name']?.substring(0, 1).toUpperCase() ?? 'U',
                       style: TextStyle(
                         fontSize: BuddyTheme.fontSizeXl,
                         fontWeight: FontWeight.bold,
                         color: theme.colorScheme.onSecondary,
                       ),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
                     )
-                    : null,
+              : CircleAvatar(
+                  radius: 40,
+                  backgroundColor: BuddyTheme.secondaryColor,
+                  child: Text(
+                    widget.flatmateData['name']?.substring(0, 1).toUpperCase() ?? 'U',
+                    style: TextStyle(
+                      fontSize: BuddyTheme.fontSizeXl,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSecondary,
+                    ),
+                  ),
           ),
           const SizedBox(width: BuddyTheme.spacingMd),
           Expanded(

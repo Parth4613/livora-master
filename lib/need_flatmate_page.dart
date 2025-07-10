@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -8,6 +8,8 @@ import 'theme.dart';
 import 'display pages/flatmate_details.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/search_cache_service.dart';
+import 'main.dart';
+import 'utils/cache_utils.dart';
 
 class NeedFlatmatePage extends StatefulWidget {
   const NeedFlatmatePage({super.key});
@@ -49,15 +51,17 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
 
   List<Map<String, dynamic>> _flatmates = [];
   bool _isLoading = true;
+  int? _hoveredFlatmateCardIndex;
+  bool _showPlaceholdersOnly = false;
 
   @override
   void initState() {
     super.initState();
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
-        statusBarColor: Colors.black, // true black
-        statusBarIconBrightness: Brightness.light, // white icons
-        statusBarBrightness: Brightness.dark, // for iOS
+        statusBarColor: Colors.black,
+        statusBarIconBrightness: Brightness.light, 
+        statusBarBrightness: Brightness.dark, 
       ),
     );
     _selectedLocation = 'All Cities';
@@ -132,17 +136,105 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Force dark mode UI for all themes
-    const Color scaffoldBackground = Colors.black; // changed to true black
-    const Color cardColor = Color(0xFF23262F);
-    const Color textPrimary = Colors.white;
-    const Color borderColor = Colors.white12;
-    const Color inputFillColor = Color(0xFF23262F);
-    const Color labelColor = Colors.white;
-    const Color hintColor = Colors.white38;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF23262F) : Colors.white;
+    final labelColor = isDark ? Colors.white : Colors.black;
 
     return Scaffold(
-      backgroundColor: scaffoldBackground,
+      backgroundColor: isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF0F0F0F) : Colors.white,
+        elevation: 0,
+        title: Text(
+          'Find Flatmates',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          // Debug button for image cleanup (remove in production)
+          if (kDebugMode)
+            IconButton(
+              icon: const Icon(Icons.cleaning_services),
+              onPressed: () async {
+                try {
+                  await CacheUtils.cleanupCorruptedFlatmateImages();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Image cleanup completed. Check console for details.'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    // Refresh the flatmate list
+                    _fetchFlatmates();
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Cleanup failed: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              tooltip: 'Cleanup corrupted images',
+            ),
+          // Force cleanup button for testing (remove in production)
+          if (kDebugMode)
+            IconButton(
+              icon: const Icon(Icons.delete_forever),
+              onPressed: () async {
+                try {
+                  await CacheUtils.forceCleanupAllFlatmateImages();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Force cleanup completed. All images removed.'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                    // Refresh the flatmate list
+                    _fetchFlatmates();
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Force cleanup failed: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              tooltip: 'Force cleanup all images',
+            ),
+          // Toggle button for image display (remove in production)
+          if (kDebugMode)
+            IconButton(
+              icon: Icon(_showPlaceholdersOnly ? Icons.image : Icons.person),
+              onPressed: () {
+                setState(() {
+                  _showPlaceholdersOnly = !_showPlaceholdersOnly;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(_showPlaceholdersOnly 
+                        ? 'Showing placeholders only' 
+                        : 'Attempting to load actual images'),
+                    backgroundColor: Colors.blue,
+                  ),
+                );
+              },
+              tooltip: _showPlaceholdersOnly ? 'Show actual images' : 'Show placeholders only',
+            ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           await Future.delayed(const Duration(seconds: 2));
@@ -156,15 +248,12 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(context, textPrimary),
+                  _buildHeader(context, labelColor),
                   const SizedBox(height: BuddyTheme.spacingLg),
                   _buildSearchSection(
                     context,
                     cardColor,
-                    inputFillColor,
                     labelColor,
-                    hintColor,
-                    borderColor,
                   ),
                   const SizedBox(height: BuddyTheme.spacingMd),
                   _buildSectionHeader(
@@ -209,10 +298,7 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
   Widget _buildSearchSection(
     BuildContext context,
     Color cardColor,
-    Color inputFillColor,
     Color labelColor,
-    Color hintColor,
-    Color borderColor,
   ) {
     return Column(
       children: [
@@ -257,7 +343,7 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                 },
                 cardColor,
                 Colors.white,
-                borderColor,
+                Colors.white12,
               ),
               const SizedBox(width: BuddyTheme.spacingXs),
               _buildFilterChip(
@@ -269,7 +355,7 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                 },
                 cardColor,
                 Colors.white,
-                borderColor,
+                Colors.white12,
               ),
               const SizedBox(width: BuddyTheme.spacingXs),
               _buildFilterChip(
@@ -281,7 +367,7 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                 },
                 cardColor,
                 Colors.white,
-                borderColor,
+                Colors.white12,
               ),
             ],
           ),
@@ -394,35 +480,43 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     }
 
     if (kIsWeb) {
-      // Optimized card size for web
       const double cardSpacing = 20.0;
-      const double cardHeight = 220.0;
-      const double gridHeight = (cardHeight * 2) + cardSpacing;
-      const double cardAspectRatio = 0.8;
-
-      return SizedBox(
-        height: gridHeight,
-        child: GridView.builder(
+      const int crossAxisCount = 3;
+      final double gridWidth = MediaQuery.of(context).size.width - (BuddyTheme.spacingMd * 2);
+      final double cardSize = (gridWidth - (cardSpacing * (crossAxisCount - 1))) / crossAxisCount;
+      if (_filteredFlatmates.length < 3) {
+        // Left-align 1 or 2 cards
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: List.generate(_filteredFlatmates.length, (index) {
+              final flatmate = _filteredFlatmates[index];
+              return Padding(
+                padding: EdgeInsets.only(right: index < _filteredFlatmates.length - 1 ? cardSpacing : 0),
+                child: _buildFlatmateCardWeb(context, flatmate, index, cardSize),
+              );
+            }),
+          ),
+        );
+      } else {
+        // 3 or more: use grid
+        return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            childAspectRatio: cardAspectRatio,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: 320 / 200,
             crossAxisSpacing: cardSpacing,
             mainAxisSpacing: cardSpacing,
           ),
-          itemCount: 6, // Always show 6 slots
+          itemCount: _filteredFlatmates.length,
           itemBuilder: (context, index) {
-            if (index < _filteredFlatmates.length) {
-              final flatmate = _filteredFlatmates[index];
-              return _buildFlatmateCard(context, flatmate, cardColor, labelColor);
-            } else {
-              // Reserve space for empty slot
-              return Container();
-            }
+            final flatmate = _filteredFlatmates[index];
+            return _buildFlatmateCardWeb(context, flatmate, index, cardSize);
           },
-        ),
-      );
+        );
+      }
     } else {
       // Mobile layout: single column
       return Column(
@@ -438,6 +532,313 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
             .toList(),
       );
     }
+  }
+
+  Widget _buildFlatmateCardWeb(BuildContext context, Map<String, dynamic> flatmate, int index, double cardSize) {
+    final double cardWidth = 420.0;
+    final double padding = 16.0;
+    final double avatarRadius = 35.0;
+    final double titleFontSize = 20.0;
+    final double subtitleFontSize = 15.0;
+    final double locationFontSize = 14.0;
+    final double iconSize = 20.0;
+    final double infoBoxHeight = 54.0;
+    final double infoBoxRadius = 16.0;
+    final double infoBoxSpacing = 12.0;
+    final double buttonFontSize = 16.0;
+    final double buttonPadding = 14.0;
+    final String? imageUrl = flatmate['profilePhotoUrl'] as String?;
+    
+    // Debug logging for image URL
+    print('Flatmate photo URL: $imageUrl');
+    print('Flatmate data: ${flatmate.toString()}');
+    
+    // Validate and fix the image URL
+    final String? validatedImageUrl = CacheUtils.validateImageUrl(imageUrl);
+    if (validatedImageUrl != imageUrl) {
+      print('Image URL validated/fixed: $validatedImageUrl');
+    }
+    
+    final String name = (flatmate['name'] ?? '').toString();
+    final String age = (flatmate['age'] ?? '').toString();
+    final String occupation = (flatmate['occupation'] ?? '').toString();
+    final String location = (flatmate['location'] ?? flatmate['preferredLocation'] ?? '').toString();
+    String budget = '';
+    if (flatmate['minBudget'] != null && flatmate['maxBudget'] != null) {
+      budget = '₹${flatmate['minBudget']} - ₹${flatmate['maxBudget']}';
+    } else if (flatmate['budgetRange'] != null) {
+      budget = flatmate['budgetRange'].toString();
+    } else if (flatmate['budget'] != null) {
+      budget = '₹${flatmate['budget']}';
+    }
+
+    String moveIn = '';
+    final moveInRaw = flatmate['moveInDate'];
+    if (moveInRaw != null) {
+      if (moveInRaw is Timestamp) {
+        moveIn = _formatDate(moveInRaw.toDate());
+      } else if (moveInRaw is DateTime) {
+        moveIn = _formatDate(moveInRaw);
+      } else if (moveInRaw is String) {
+        final parsed = DateTime.tryParse(moveInRaw);
+        if (parsed != null) {
+          moveIn = _formatDate(parsed);
+        } else {
+          moveIn = moveInRaw;
+        }
+      } else {
+        moveIn = moveInRaw.toString();
+      }
+    }
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredFlatmateCardIndex = index),
+      onExit: (_) => setState(() => _hoveredFlatmateCardIndex = null),
+      child: GestureDetector(
+        onTap: () {
+          _viewFlatmateDetails(flatmate);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          transform: _hoveredFlatmateCardIndex == index ? (Matrix4.identity()..scale(1.04)) : Matrix4.identity(),
+          decoration: BoxDecoration(
+            color: const Color(0xFF23262F),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: _hoveredFlatmateCardIndex == index ? 32 : 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          width: cardWidth,
+          margin: const EdgeInsets.only(bottom: 32.0),
+          child: Padding(
+            padding: EdgeInsets.all(padding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with photo and basic info
+                Row(
+                  children: [
+                    validatedImageUrl != null && validatedImageUrl.isNotEmpty && !_showPlaceholdersOnly
+                        ? FutureBuilder<bool>(
+                            future: CacheUtils.isImageUrlAccessible(validatedImageUrl),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return Container(
+                                  width: avatarRadius * 2,
+                                  height: avatarRadius * 2,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white12,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              
+                              final isAccessible = snapshot.data ?? false;
+                              if (!isAccessible) {
+                                print('Image not accessible, showing placeholder');
+                                return CircleAvatar(
+                                  radius: avatarRadius,
+                                  backgroundColor: Colors.white12,
+                                  child: Icon(Icons.person_outline, color: Colors.white38, size: avatarRadius),
+                                );
+                              }
+                              
+                              return ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: validatedImageUrl,
+                                  width: avatarRadius * 2,
+                                  height: avatarRadius * 2,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => Container(
+                                    width: avatarRadius * 2,
+                                    height: avatarRadius * 2,
+                                    color: Colors.white12,
+                                    child: Icon(Icons.person_outline, color: Colors.white38, size: avatarRadius),
+                                  ),
+                                  errorWidget: (context, url, error) {
+                                    print('CachedNetworkImage error for URL: $url');
+                                    print('Error: $error');
+                                    // Mark this image as inaccessible for future reference
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      _markImageAsInaccessible(validatedImageUrl);
+                                    });
+                                    return Container(
+                                      width: avatarRadius * 2,
+                                      height: avatarRadius * 2,
+                                      color: Colors.white12,
+                                      child: Icon(Icons.person_outline, color: Colors.white38, size: avatarRadius),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          )
+                        : CircleAvatar(
+                            radius: avatarRadius,
+                            backgroundColor: Colors.white12,
+                            child: Icon(Icons.person_outline, color: Colors.white38, size: avatarRadius),
+                          ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: TextStyle(
+                              fontSize: titleFontSize,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            '$age • $occupation',
+                            style: TextStyle(
+                              fontSize: subtitleFontSize,
+                              color: Colors.white.withOpacity(0.7),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.location_on, color: Colors.white.withOpacity(0.7), size: iconSize),
+                              const SizedBox(width: 4),
+                              Text(
+                                location,
+                                style: TextStyle(
+                                  fontSize: locationFontSize,
+                                  color: Colors.white.withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: infoBoxHeight,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF232B3A),
+                          borderRadius: BorderRadius.circular(infoBoxRadius),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Budget Range',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              budget,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF4F8CFF),
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        height: infoBoxHeight,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E2C25),
+                          borderRadius: BorderRadius.circular(infoBoxRadius),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Move-in Date',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              moveIn,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF3DDC97),
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      _viewFlatmateDetails(flatmate);
+                    },
+                    icon: const Icon(Icons.remove_red_eye, color: Colors.white),
+                    label: const Text(
+                      'View Details',
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF64B5F6),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildFlatmatePlaceholderCard() {
@@ -572,6 +973,17 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     final double badgePadding = isWeb ? 6.0 : 8.0;
     
     final Color accentColor = const Color(0xFF64B5F6);
+    
+    // Debug logging for image URL
+    final String? imageUrl = flatmate['profilePhotoUrl'] as String?;
+    print('Mobile Flatmate photo URL: $imageUrl');
+    
+    // Validate and fix the image URL
+    final String? validatedImageUrl = CacheUtils.validateImageUrl(imageUrl);
+    if (validatedImageUrl != imageUrl) {
+      print('Mobile Image URL validated/fixed: $validatedImageUrl');
+    }
+    
     return Container(
       decoration: BuddyTheme.cardDecoration.copyWith(color: cardColor),
       child: Padding(
@@ -582,22 +994,76 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
             // Header with photo and basic info
             Row(
               children: [
-                CircleAvatar(
-                  radius: avatarRadius,
-                  backgroundColor: cardColor,
-                  backgroundImage:
-                      flatmate['profilePhotoUrl'] != null
-                          ? NetworkImage(flatmate['profilePhotoUrl'])
-                          : null,
-                  child:
-                      flatmate['profilePhotoUrl'] == null
-                          ? Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: isWeb ? 24 : 28,
-                          )
-                          : null,
-                ),
+                validatedImageUrl != null && validatedImageUrl.isNotEmpty
+                    ? FutureBuilder<bool>(
+                        future: CacheUtils.isImageUrlAccessible(validatedImageUrl),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Container(
+                              width: avatarRadius * 2,
+                              height: avatarRadius * 2,
+                              decoration: BoxDecoration(
+                                color: cardColor,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          
+                          final isAccessible = snapshot.data ?? false;
+                          if (!isAccessible) {
+                            print('Mobile image not accessible, showing placeholder');
+                            return CircleAvatar(
+                              radius: avatarRadius,
+                              backgroundColor: cardColor,
+                              child: Icon(Icons.person, color: Colors.white, size: isWeb ? 24 : 28),
+                            );
+                          }
+                          
+                          return ClipOval(
+                            child: CachedNetworkImage(
+                              imageUrl: validatedImageUrl,
+                              width: avatarRadius * 2,
+                              height: avatarRadius * 2,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                width: avatarRadius * 2,
+                                height: avatarRadius * 2,
+                                color: cardColor,
+                                child: Icon(Icons.person, color: Colors.white, size: isWeb ? 24 : 28),
+                              ),
+                              errorWidget: (context, url, error) {
+                                print('Mobile CachedNetworkImage error for URL: $url');
+                                print('Error: $error');
+                                return Container(
+                                  width: avatarRadius * 2,
+                                  height: avatarRadius * 2,
+                                  color: cardColor,
+                                  child: Icon(Icons.person, color: Colors.white, size: isWeb ? 24 : 28),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      )
+                    : CircleAvatar(
+                        radius: avatarRadius,
+                        backgroundColor: cardColor,
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: isWeb ? 24 : 28,
+                        ),
+                      ),
                 SizedBox(width: spacing),
                 Expanded(
                   child: Column(
@@ -934,5 +1400,11 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
 
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
+  }
+
+  void _markImageAsInaccessible(String? imageUrl) {
+    if (imageUrl != null) {
+      CacheUtils.markImageAsInaccessible(imageUrl);
+    }
   }
 }

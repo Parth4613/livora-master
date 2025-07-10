@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'services/efficient_payment_service.dart';
+import 'services/google_play_billing_service.dart';
 
 class PremiumPlansPage extends StatefulWidget {
   const PremiumPlansPage({Key? key}) : super(key: key);
@@ -12,11 +15,20 @@ class PremiumPlansPage extends StatefulWidget {
 class _PremiumPlansPageState extends State<PremiumPlansPage> {
   List<Map<String, dynamic>> userPlans = [];
   bool loading = true;
+  
+  // Premium plan prices
+  Map<String, double> premiumPrices = {
+    'Express Hunt': 29.0,
+    'Prime Seeker': 49.0,
+    'Precision Pro': 99.0,
+  };
+  bool pricesLoading = true;
 
   @override
   void initState() {
     super.initState();
     _fetchUserPlans();
+    _fetchPremiumPrices();
   }
 
   // Helper to get plan duration in days
@@ -73,27 +85,93 @@ class _PremiumPlansPageState extends State<PremiumPlansPage> {
   }
 
   Future<void> _addPlanToUser(String plan) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    final now = DateTime.now();
-    final expiresAt = now.add(Duration(days: _planDurationDays(plan)));
-    final planObj = {
-      'name': plan,
-      'activatedAt': Timestamp.fromDate(now),
-      'expiresAt': Timestamp.fromDate(expiresAt),
-    };
-    // Remove any expired or duplicate plan with the same name
-    List<Map<String, dynamic>> updatedPlans = List<Map<String, dynamic>>.from(userPlans);
-    updatedPlans.removeWhere((p) => p['name'] == plan);
-    updatedPlans.add(planObj);
-    await userDoc.set({
-      'plans': updatedPlans
-    }, SetOptions(merge: true));
+    print('_addPlanToUser called with plan: $plan');
+    final amount = premiumPrices[plan] ?? 0.0;
+    print('Amount for plan $plan: $amount');
+    
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid plan price'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    print('Processing premium plan payment for: $plan');
+    try {
+      // Use Google Play Billing for mobile, Razorpay for web
+      if (kIsWeb) {
+        await EfficientPaymentService().processPremiumPlanPayment(
+          planName: plan,
+          amount: amount,
+          context: context,
+        );
+      } else {
+        await GooglePlayBillingService().processPremiumPlanPayment(
+          planName: plan,
+          amount: amount,
+          context: context,
+        );
+      }
+      print('Payment processing completed');
+    } catch (e) {
+      print('Error in payment processing: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Payment error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    
+    // Refresh user plans after payment
     await _fetchUserPlans();
   }
 
+  Future<void> _fetchPremiumPrices() async {
+    setState(() {
+      pricesLoading = true;
+    });
+
+    try {
+      // Map plan names to Firestore document IDs
+      final planMapping = {
+        'Express Hunt': 'express_hunt',
+        'Prime Seeker': 'prime_seeker',
+        'Precision Pro': 'precision_pro',
+      };
+
+      for (final entry in planMapping.entries) {
+        final planName = entry.key;
+        final docId = entry.value;
+        
+        final doc = await FirebaseFirestore.instance
+            .collection('premium_plans')
+            .doc(docId)
+            .get();
+        
+        if (doc.exists) {
+          final data = doc.data()!;
+          final price = (data['price'] as num?)?.toDouble() ?? 
+                       (data['actual_price'] as num?)?.toDouble() ?? 
+                       premiumPrices[planName] ?? 0.0;
+          premiumPrices[planName] = price;
+        }
+      }
+    } catch (e) {
+      // Keep default prices if fetch fails
+      print('Error fetching premium prices: $e');
+    } finally {
+      setState(() {
+        pricesLoading = false;
+      });
+    }
+  }
+
   void _showUpgradeSheet(BuildContext context, String upgradeTitle, String upgradeTagline, VoidCallback onUpgrade, VoidCallback onContinue, String continueLabel) {
+    print('_showUpgradeSheet called with title: $upgradeTitle');
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -297,6 +375,9 @@ class _PremiumPlansPageState extends State<PremiumPlansPage> {
     bool hasExpress = activePlans.contains('Express Hunt');
     bool hasPrime = activePlans.contains('Prime Seeker');
     bool hasPro = activePlans.contains('Precision Pro');
+    
+    print('Active plans: $activePlans');
+    print('hasExpress: $hasExpress, hasPrime: $hasPrime, hasPro: $hasPro');
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -323,91 +404,112 @@ class _PremiumPlansPageState extends State<PremiumPlansPage> {
             ],
           ),
         ),
-        child: ListView(
-          children: [
-            _PlanCard(
-              title: 'Express Hunt',
-              subtitle: '',
-              tagline: 'Quick access. Fast results. Start your property hunt today.',
-              price: '₹29',
-              features: [
-                'Unlimited Chat & Call access for 7 Days',
-              ],
-              color: Colors.lightBlueAccent,
-              icon: Icons.flash_on,
-              buttonLabel: hasExpress ? 'Owned' : 'Buy Now',
-              onBuy: hasExpress
-                  ? null
-                  : () {
-                      _showUpgradeSheet(
-                        context,
-                        'Buy Prime Seeker for More Benefits',
-                        'Unlock a full month of seamless connections and smarter searches.',
-                        () async {
-                          Navigator.of(context).pop();
-                          await _addPlanToUser('Prime Seeker');
-                        },
-                        () async {
-                          Navigator.of(context).pop();
-                          await _addPlanToUser('Express Hunt');
-                        },
-                        'Continue with Express Hunt',
-                      );
-                    },
-            ),
-            const SizedBox(height: 20),
-            _PlanCard(
-              title: 'Prime Seeker',
-              subtitle: '',
-              tagline: 'Unlock a full month of seamless connections and smarter searches.',
-              price: '₹49',
-              features: [
-                'Unlimited Chat & Call access for 1 Month',
-              ],
-              color: Colors.green,
-              icon: Icons.star,
-              buttonLabel: hasPrime ? 'Owned' : 'Buy Now',
-              onBuy: hasPrime
-                  ? null
-                  : () {
-                      _showUpgradeSheet(
-                        context,
-                        'Buy Precision Pro for Ultimate Benefits',
-                        'Search exactly where you want. Connect with who you need.',
-                        () async {
-                          Navigator.of(context).pop();
-                          await _addPlanToUser('Precision Pro');
-                        },
-                        () async {
-                          Navigator.of(context).pop();
-                          await _addPlanToUser('Prime Seeker');
-                        },
-                        'Continue with Prime Seeker',
-                      );
-                    },
-            ),
-            const SizedBox(height: 20),
-            _PlanCard(
-              title: 'Precision Pro',
-              subtitle: '',
-              tagline: 'Search exactly where you want. Connect with who you need.',
-              price: '₹99',
-              features: [
-                'Pin Drop & Radius Search feature for hyper-targeted browsing',
-                'Unlimited Chat & Call access for 1 Month',
-              ],
-              color: Colors.orangeAccent,
-              icon: Icons.location_searching,
-              buttonLabel: hasPro ? 'Owned' : 'Buy Now',
-              onBuy: hasPro
-                  ? null
-                  : () async {
-                      await _addPlanToUser('Precision Pro');
-                    },
-              isPro: true,
-            ),
-          ],
-        ),
+        child: pricesLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                children: [
+                  _PlanCard(
+                    title: 'Express Hunt',
+                    subtitle: '',
+                    tagline: 'Quick access. Fast results. Start your property hunt today.',
+                    price: '₹${premiumPrices['Express Hunt']?.toInt() ?? 29}',
+                    features: [
+                      'Unlimited Chat & Call access for 7 Days',
+                    ],
+                    color: Colors.lightBlueAccent,
+                    icon: Icons.flash_on,
+                    buttonLabel: hasExpress ? 'Owned' : 'Buy Now',
+                    onBuy: hasExpress
+                        ? null
+                        : () {
+                            _showUpgradeSheet(
+                              context,
+                              'Buy Prime Seeker for More Benefits',
+                              'Unlock a full month of seamless connections and smarter searches.',
+                              () async {
+                                print('Prime Seeker upgrade button pressed!');
+                                Navigator.of(context).pop();
+                                await _addPlanToUser('Prime Seeker');
+                              },
+                              () async {
+                                print('Express Hunt upgrade button pressed!');
+                                Navigator.of(context).pop();
+                                await _addPlanToUser('Express Hunt');
+                              },
+                              'Continue with Express Hunt',
+                            );
+                          },
+                  ),
+                  const SizedBox(height: 20),
+                  _PlanCard(
+                    title: 'Prime Seeker',
+                    subtitle: '',
+                    tagline: 'Unlock a full month of seamless connections and smarter searches.',
+                    price: '₹${premiumPrices['Prime Seeker']?.toInt() ?? 49}',
+                    features: [
+                      'Unlimited Chat & Call access for 1 Month',
+                    ],
+                    color: Colors.green,
+                    icon: Icons.star,
+                    buttonLabel: hasPrime ? 'Owned' : 'Buy Now',
+                    onBuy: hasPrime
+                        ? null
+                        : () {
+                            _showUpgradeSheet(
+                              context,
+                              'Buy Precision Pro for Ultimate Benefits',
+                              'Search exactly where you want. Connect with who you need.',
+                              () async {
+                                print('Precision Pro upgrade button pressed!');
+                                Navigator.of(context).pop();
+                                await _addPlanToUser('Precision Pro');
+                              },
+                              () async {
+                                print('Prime Seeker upgrade button pressed!');
+                                Navigator.of(context).pop();
+                                await _addPlanToUser('Prime Seeker');
+                              },
+                              'Continue with Prime Seeker',
+                            );
+                          },
+                  ),
+                  const SizedBox(height: 20),
+                  _PlanCard(
+                    title: 'Precision Pro',
+                    subtitle: '',
+                    tagline: 'Search exactly where you want. Connect with who you need.',
+                    price: '₹${premiumPrices['Precision Pro']?.toInt() ?? 99}',
+                    features: [
+                      'Pin Drop & Radius Search feature for hyper-targeted browsing',
+                      'Unlimited Chat & Call access for 1 Month',
+                    ],
+                    color: Colors.orangeAccent,
+                    icon: Icons.location_searching,
+                    buttonLabel: hasPro ? 'Owned' : 'Buy Now',
+                    onBuy: hasPro
+                        ? null
+                        : () async {
+                            print('Precision Pro buy button pressed!');
+                            // Show a test dialog to confirm button press
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text('Button Pressed'),
+                                content: Text('Precision Pro button was pressed!'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.of(context).pop(),
+                                    child: Text('OK'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            await _addPlanToUser('Precision Pro');
+                          },
+                    isPro: true,
+                  ),
+                ],
+              ),
       ),
     );
   }
