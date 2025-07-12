@@ -1,24 +1,24 @@
-# Razorpay Integration Guide for Livora App
+# Razorpay In-App WebView Integration Guide
 
 ## Overview
-This guide explains how to integrate Razorpay payment gateway into your Livora app for handling payments for listing services and premium plans.
+This guide explains how to integrate Razorpay payment gateway into your Livora app using in-app WebView for handling payments for listing services and premium plans.
 
 ## Files Modified/Created
 
 ### 1. **Dependencies Added**
-- `pubspec.yaml`: Added `razorpay_flutter: ^1.3.5`
+- `pubspec.yaml`: Added `webview_flutter: ^4.7.0`
 
 ### 2. **New Files Created**
-- `lib/services/razorpay_service.dart`: Main payment service
+- `lib/services/razorpay_inapp_service.dart`: In-app WebView payment service
 - `lib/payment_success_page.dart`: Success page after payment
 - `assets/animations/success.json`: Success animation
 - `RAZORPAY_INTEGRATION_GUIDE.md`: This guide
 
 ### 3. **Files Modified**
-- `lib/main.dart`: Added Razorpay initialization
-- `lib/premium_plans_page.dart`: Updated to use Razorpay for premium plans
-- `lib/widgets/list_hostel_form.dart`: Updated to use Razorpay for hostel listings
-- `pubspec.yaml`: Added success animation asset
+- `lib/services/efficient_payment_service.dart`: Updated to use in-app WebView
+- `lib/premium_plans_page.dart`: Updated to use Google Play Billing for premium plans
+- `lib/widgets/list_hostel_form.dart`: Updated to use in-app WebView for listings
+- `pubspec.yaml`: Added WebView dependency
 
 ## Setup Instructions
 
@@ -30,7 +30,7 @@ This guide explains how to integrate Razorpay payment gateway into your Livora a
 5. Copy the Key ID and Key Secret
 
 ### Step 2: Update Razorpay Keys
-In `lib/services/razorpay_service.dart`, replace:
+In `lib/services/razorpay_inapp_service.dart`, replace:
 ```dart
 static const String _razorpayKey = 'rzp_test_YOUR_KEY_HERE'; // Test key
 ```
@@ -45,43 +45,19 @@ Run the following command:
 flutter pub get
 ```
 
-### Step 4: Platform Configuration
-
-#### Android Configuration
-Add to `android/app/build.gradle`:
-```gradle
-android {
-    defaultConfig {
-        // ... other configs
-        minSdkVersion 21
-    }
-}
-```
-
-#### iOS Configuration
-Add to `ios/Runner/Info.plist`:
-```xml
-<key>LSApplicationQueriesSchemes</key>
-<array>
-    <string>googlepay</string>
-    <string>phonepe</string>
-    <string>paytm</string>
-</array>
-```
-
 ## Integration Points
 
-### 1. **Premium Plans Payment**
+### 1. **Premium Plans Payment (Google Play Billing)**
 **File**: `lib/premium_plans_page.dart`
 - **Trigger**: User clicks "Buy Now" on premium plans
 - **Flow**: 
   1. User selects a plan
-  2. Razorpay payment gateway opens
+  2. Google Play Billing opens (native Android)
   3. User completes payment
   4. Plan is activated and saved to user's account
   5. Success message shown
 
-### 2. **Listing Services Payment**
+### 2. **Listing Services Payment (In-App WebView)**
 **Files**: 
 - `lib/widgets/list_hostel_form.dart`
 - `lib/widgets/list_room_form.dart`
@@ -92,7 +68,7 @@ Add to `ios/Runner/Info.plist`:
 1. User fills listing form
 2. User selects payment plan
 3. Form is submitted with `paymentStatus: 'pending'`
-4. Razorpay payment gateway opens
+4. In-app WebView opens with Razorpay payment form
 5. After successful payment:
    - Listing becomes visible (`visibility: true`)
    - Payment record is saved
@@ -119,12 +95,12 @@ All payments are stored in Firestore collection `payments` with structure:
 
 ## Payment Flow Details
 
-### Premium Plans
+### Premium Plans (Google Play Billing)
 1. **Express Hunt** (₹29) - 7 days access
 2. **Prime Seeker** (₹49) - 30 days access  
 3. **Precision Pro** (₹99) - 30 days access + advanced features
 
-### Listing Services
+### Listing Services (In-App WebView)
 1. **1 Day** - Basic visibility for 1 day
 2. **7 Days** - Extended visibility for 7 days
 3. **15 Days** - Medium-term visibility for 15 days
@@ -142,6 +118,20 @@ All payments are stored in Firestore collection `payments` with structure:
 - **Success**: success@razorpay
 - **Failure**: failure@razorpay
 
+## Key Features
+
+### In-App WebView Benefits
+✅ **No External Browser** - Payment form opens inside your app  
+✅ **Native App Feel** - Users stay within your app throughout  
+✅ **Seamless Integration** - Looks and feels like a native payment form  
+✅ **Automatic Detection** - Success/failure detected automatically  
+✅ **No Dependency Issues** - Uses WebView instead of problematic Flutter SDK  
+
+### Payment Flow
+```
+App Form → In-App WebView → Razorpay Form → Payment → Success Page
+```
+
 ## Error Handling
 
 The integration includes comprehensive error handling:
@@ -150,6 +140,7 @@ The integration includes comprehensive error handling:
 - User cancellations
 - Invalid amounts
 - Authentication errors
+- WebView loading issues
 
 ## Security Considerations
 
@@ -158,11 +149,12 @@ The integration includes comprehensive error handling:
 3. **Verify payment signatures** on your backend
 4. **Implement webhook handling** for payment status updates
 5. **Store sensitive data** securely in Firestore
+6. **Use HTTPS** for all payment communications
 
 ## Production Deployment
 
 ### 1. Switch to Live Keys
-Replace test keys with live keys in `razorpay_service.dart`:
+Replace test keys with live keys in `razorpay_inapp_service.dart`:
 ```dart
 static const String _razorpayKey = 'rzp_live_YOUR_LIVE_KEY_HERE';
 ```
@@ -173,41 +165,30 @@ Set up webhooks in Razorpay dashboard for:
 - `payment.failed`
 - `refund.processed`
 
-### 3. Implement Backend Verification
-Create a backend service to verify payment signatures:
-```javascript
-// Example Node.js verification
-const crypto = require('crypto');
-
-function verifyPaymentSignature(orderId, paymentId, signature, secret) {
-  const text = orderId + '|' + paymentId;
-  const generatedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(text)
-    .digest('hex');
-  
-  return generatedSignature === signature;
-}
+### 3. Update Backend URL
+Change the backend URL in `razorpay_inapp_service.dart`:
+```dart
+static const String _backendUrl = 'https://your-production-backend.com';
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Payment not processing**
+1. **WebView not loading**
+   - Check internet connectivity
+   - Verify Razorpay key configuration
+   - Check if JavaScript is enabled
+
+2. **Payment not processing**
    - Check Razorpay key configuration
-   - Verify internet connectivity
+   - Verify backend server is running
    - Check amount format (should be in paise)
 
-2. **App crashes on payment**
-   - Ensure Razorpay is initialized in main.dart
-   - Check platform-specific configurations
-   - Verify all dependencies are installed
-
-3. **Payment success but listing not visible**
-   - Check Firestore rules
-   - Verify payment record creation
-   - Check listing update logic
+3. **Success page not showing**
+   - Check payment detection logic
+   - Verify Firestore permissions
+   - Check navigation logic
 
 ### Debug Mode
 Enable debug logging by adding:
@@ -218,7 +199,8 @@ print('Payment Debug: ${response.paymentId}');
 ## Support
 
 For issues related to:
-- **Razorpay SDK**: Check [Razorpay Flutter Documentation](https://razorpay.com/docs/payments/payment-gateway/flutter-integration/standard/)
+- **Razorpay**: Check [Razorpay Documentation](https://razorpay.com/docs/)
+- **WebView**: Check [WebView Flutter Documentation](https://pub.dev/packages/webview_flutter)
 - **App Integration**: Check this guide and code comments
 - **Payment Issues**: Contact Razorpay support
 
@@ -229,21 +211,4 @@ For issues related to:
 3. **Add payment analytics** and reporting
 4. **Implement refund functionality**
 5. **Add payment history** in user profile
-6. **Implement subscription management** for recurring payments
-
-## Files to Update for Other Listing Forms
-
-To complete the integration, update these files similarly to `list_hostel_form.dart`:
-
-1. `lib/widgets/list_room_form.dart`
-2. `lib/widgets/list_service_form.dart` 
-3. `lib/widgets/room_request_form.dart`
-
-Follow the same pattern:
-1. Add Razorpay import
-2. Update `_submitForm` method
-3. Set `visibility: false` initially
-4. Add `paymentStatus: 'pending'`
-5. Call `RazorpayService().processListingPayment()`
-
-This completes the Razorpay integration for your Livora app! 
+6. **Implement subscription management** for recurring payments 

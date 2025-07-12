@@ -7,6 +7,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../payment_success_page.dart';
+import 'google_play_billing_service.dart';
+import 'razorpay_inapp_service.dart';
 
 class EfficientPaymentService {
   static final EfficientPaymentService _instance = EfficientPaymentService._internal();
@@ -18,7 +20,13 @@ class EfficientPaymentService {
   static const String _razorpaySecret = '540ObIojNTJlPoQMdZsdXoyX';
   
   // Your backend API URL (update this with your deployed backend URL)
-  static const String _backendUrl = 'http://localhost:3000'; // For development
+  static String get _backendUrl {
+    if (kIsWeb) {
+      return 'http://localhost:3000'; // For web development
+    } else {
+      return 'http://10.92.18.47:3000'; // For real Android device
+    }
+  }
   // static const String _backendUrl = 'https://your-production-backend.com'; // For production
 
   Future<void> processPremiumPlanPayment({
@@ -33,15 +41,17 @@ class EfficientPaymentService {
     }
 
     try {
-      // Create order on your backend
-      final order = await _createOrder(planName, amount, user.uid);
-      
       if (kIsWeb) {
-        // Web implementation
+        // Web implementation - use Razorpay
+        final order = await _createOrder(planName, amount, user.uid);
         await _processWebPayment(order, context);
       } else {
-        // Mobile implementation - open payment URL in browser
-        await _processMobilePayment(order, context);
+        // Mobile implementation - use Google Play Billing
+        await GooglePlayBillingService().processPremiumPlanPayment(
+          planName: planName,
+          amount: amount,
+          context: context,
+        );
       }
     } catch (e) {
       print('Payment error: $e');
@@ -56,25 +66,36 @@ class EfficientPaymentService {
     required String listingId,
     required BuildContext context,
   }) async {
+    print('EfficientPaymentService.processListingPayment called');
+    print('Listing Type: $listingType, Plan: $planName, Amount: $amount, Listing ID: $listingId');
+    
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      print('User not authenticated');
       _showErrorSnackBar(context, 'User not authenticated');
       return;
     }
 
     try {
-      // Create order on your backend
-      final order = await _createListingOrder(listingType, planName, amount, listingId, user.uid);
-      
       if (kIsWeb) {
-        // Web implementation
+        print('Processing web payment');
+        // Web implementation - use browser-based Razorpay
+        final order = await _createListingOrder(listingType, planName, amount, listingId, user.uid);
         await _processWebPayment(order, context);
       } else {
-        // Mobile implementation - open payment URL in browser
-        await _processMobilePayment(order, context);
+        print('Processing mobile payment with RazorpayInAppService');
+        // Mobile implementation - use Razorpay In-App WebView
+        await RazorpayInAppService().processListingPayment(
+          listingType: listingType,
+          planName: planName,
+          amount: amount,
+          listingId: listingId,
+          context: context,
+        );
       }
+      print('Payment processing completed successfully');
     } catch (e) {
-      print('Payment error: $e');
+      print('Payment error in EfficientPaymentService: $e');
       _showErrorSnackBar(context, 'Payment failed: $e');
     }
   }

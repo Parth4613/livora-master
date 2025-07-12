@@ -16,6 +16,8 @@ class GooglePlayBillingService {
     'Precision Pro': 'precision_pro_plan',
   };
 
+
+
   final InAppPurchase _iap = InAppPurchase.instance;
   StreamSubscription<List<PurchaseDetails>>? _subscription;
   bool _isAvailable = false;
@@ -68,6 +70,8 @@ class GooglePlayBillingService {
     _iap.buyNonConsumable(purchaseParam: purchaseParam);
   }
 
+
+
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) async {
     for (final purchase in purchases) {
       if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
@@ -94,13 +98,15 @@ class GooglePlayBillingService {
         'status': 'success',
         'createdAt': FieldValue.serverTimestamp(),
       });
-      // Activate the plan
+
+      // Activate the premium plan
       await _activatePremiumPlan(_pendingPlanName!, purchase.verificationData.serverVerificationData, _pendingContext!);
+      
       // Complete the purchase
       await _iap.completePurchase(purchase);
     } catch (e) {
       print('Error finalizing purchase: $e');
-      _showErrorSnackBar(_pendingContext!, 'Error activating plan: $e');
+      _showErrorSnackBar(_pendingContext!, 'Error processing payment: $e');
     }
   }
 
@@ -151,6 +157,8 @@ class GooglePlayBillingService {
       _showErrorSnackBar(context, 'Error activating plan: $e');
     }
   }
+
+
 
   void _showErrorSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(

@@ -602,11 +602,11 @@ class _ProfilePageState extends State<ProfilePage> {
       } else if (selectedService != null && selectedDay != null) {
         // Fetch listing service prices
         final doc = await FirebaseFirestore.instance
-            .collection('plan_prices')
-            .doc(selectedService)
-            .collection('day_wise_prices')
-            .doc(selectedDay)
-            .get();
+                .collection('plan_prices')
+                .doc(selectedService)
+                .collection('day_wise_prices')
+                .doc(selectedDay)
+                .get();
         if (doc.exists) {
           final data = doc.data()!;
           actualPriceController.text = data['actual_price']?.toString() ?? '';
@@ -672,31 +672,31 @@ class _ProfilePageState extends State<ProfilePage> {
                       
                       // Service/Premium Plan Selection
                       if (!isPremiumPlan) ...[
-                        DropdownButtonFormField<String>(
-                          value: selectedService,
-                          hint: const Text('Select Service'),
+                      DropdownButtonFormField<String>(
+                        value: selectedService,
+                        hint: const Text('Select Service'),
                           items: services
-                              .map(
-                                (s) => DropdownMenuItem(
-                                  value: s,
-                                  child: Text(s),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (val) async {
-                            setState(() {
-                              selectedService = val;
-                              selectedDay = null;
-                              actualPriceController.clear();
-                              discountedPriceController.clear();
-                            });
-                            // If both are selected, fetch prices
-                            if (val != null && selectedDay != null) {
-                              await fetchPrices();
-                              setState(() {});
-                            }
-                          },
-                        ),
+                                .map(
+                                  (s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(s),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (val) async {
+                          setState(() {
+                            selectedService = val;
+                            selectedDay = null;
+                            actualPriceController.clear();
+                            discountedPriceController.clear();
+                          });
+                          // If both are selected, fetch prices
+                          if (val != null && selectedDay != null) {
+                            await fetchPrices();
+                            setState(() {});
+                          }
+                        },
+                      ),
                       ] else ...[
                         DropdownButtonFormField<String>(
                           value: selectedPremiumPlan,
@@ -724,30 +724,30 @@ class _ProfilePageState extends State<ProfilePage> {
                       ],
                       const SizedBox(height: 12),
                       if (!isPremiumPlan) ...[
-                        DropdownButtonFormField<String>(
-                          value: selectedDay,
-                          hint: const Text('Select Days'),
+                      DropdownButtonFormField<String>(
+                        value: selectedDay,
+                        hint: const Text('Select Days'),
                           items: dayOptions
-                              .map(
-                                (d) => DropdownMenuItem(
-                                  value: d,
-                                  child: Text(d),
-                                ),
-                              )
-                              .toList(),
+                                .map(
+                                  (d) => DropdownMenuItem(
+                                    value: d,
+                                    child: Text(d),
+                                  ),
+                                )
+                                .toList(),
                           onChanged: selectedService == null
-                              ? null
-                              : (val) async {
-                                setState(() {
-                                  selectedDay = val;
-                                });
-                                if (selectedService != null && val != null) {
-                                  await fetchPrices();
-                                  setState(() {});
-                                }
-                              },
-                          disabledHint: const Text('Select Service First'),
-                        ),
+                                ? null
+                                : (val) async {
+                                  setState(() {
+                                    selectedDay = val;
+                                  });
+                                  if (selectedService != null && val != null) {
+                                    await fetchPrices();
+                                    setState(() {});
+                                  }
+                                },
+                        disabledHint: const Text('Select Service First'),
+                      ),
                         const SizedBox(height: 12),
                       ],
                       const SizedBox(height: 12),
@@ -795,25 +795,25 @@ class _ProfilePageState extends State<ProfilePage> {
                               'discounted_price': discountedPrice,
                             }, SetOptions(merge: true));
                       } else {
-                        if (selectedService == null || selectedDay == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please select service and days'),
-                            ),
-                          );
-                          return;
-                        }
+                      if (selectedService == null || selectedDay == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please select service and days'),
+                          ),
+                        );
+                        return;
+                      }
                         final actualPrice = double.tryParse(actualPriceController.text) ?? 0;
                         final discountedPrice = double.tryParse(discountedPriceController.text) ?? 0;
-                        await FirebaseFirestore.instance
-                            .collection('plan_prices')
-                            .doc(selectedService)
-                            .collection('day_wise_prices')
-                            .doc(selectedDay)
-                            .set({
-                              'actual_price': actualPrice,
-                              'discounted_price': discountedPrice,
-                            }, SetOptions(merge: true));
+                      await FirebaseFirestore.instance
+                          .collection('plan_prices')
+                          .doc(selectedService)
+                          .collection('day_wise_prices')
+                          .doc(selectedDay)
+                          .set({
+                            'actual_price': actualPrice,
+                            'discounted_price': discountedPrice,
+                          }, SetOptions(merge: true));
                       }
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(

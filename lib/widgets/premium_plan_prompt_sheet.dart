@@ -137,12 +137,12 @@ class _PremiumPlanPromptSheetState extends State<PremiumPlanPromptSheet> {
                 ),
               )
             else
-              ...plans.map((plan) => _PlanPreviewCard(plan: plan, onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (context) => const PremiumPlansPage(),
-                ));
-              })).toList(),
+            ...plans.map((plan) => _PlanPreviewCard(plan: plan, onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => const PremiumPlansPage(),
+              ));
+            })).toList(),
             const SizedBox(height: 12),
             Text(
               'Select a plan to see more details and purchase.',

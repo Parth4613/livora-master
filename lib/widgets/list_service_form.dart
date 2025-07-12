@@ -433,13 +433,23 @@ class _ListServiceFormState extends State<ListServiceForm>
       }
 
       // Now process payment
-              await EfficientPaymentService().processListingPayment(
-        listingType: 'list_service',
-        planName: _selectedPlan,
-        amount: planPrice,
-        listingId: newServiceDocId,
-        context: context,
-      );
+      print('Starting payment process for listing: $newServiceDocId');
+      print('Plan: $_selectedPlan, Amount: $planPrice');
+      
+      try {
+        await EfficientPaymentService().processListingPayment(
+          listingType: 'list_service',
+          planName: _selectedPlan,
+          amount: planPrice,
+          listingId: newServiceDocId,
+          context: context,
+        );
+        print('Payment process completed successfully');
+      } catch (paymentError) {
+        print('Payment error: $paymentError');
+        ValidationSnackBar.showError(context, 'Payment failed: $paymentError');
+        return;
+      }
 
       // Invalidate service cache to ensure fresh data
       await CacheUtils.invalidateServiceCache();

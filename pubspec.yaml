@@ -73,7 +73,10 @@ dependencies:
   
   # Google Play Billing (for mobile premium plans)
   in_app_purchase: ^3.1.13
-
+  
+  # WebView for in-app payments
+  webview_flutter: ^4.7.0
+  
 
 dev_dependencies:
   flutter_test:

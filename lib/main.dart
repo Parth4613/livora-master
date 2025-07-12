@@ -60,6 +60,8 @@ void main() async {
   // Initialize notifications in the background to prevent blocking app startup
   _initializeNotificationsInBackground();
   
+ 
+ 
 
   
   } catch (e) {
