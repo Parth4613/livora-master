@@ -60,10 +60,10 @@ app.post('/api/orders/create', async (req, res) => {
     }
 
     // Validate amount (should be in paise for Razorpay)
-    const amountInPaise = Math.round(parseFloat(amount) * 100);
-    if (amountInPaise <= 0) {
+    const amountInPaise = parseInt(amount, 10);
+    if (isNaN(amountInPaise) || amountInPaise <= 0) {
       return res.status(400).json({
-        error: 'amount must be greater than 0',
+        error: 'amount must be greater than 0 and a valid number',
       });
     }
 

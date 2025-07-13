@@ -13,6 +13,7 @@ import 'chat_list_screen.dart';
 import '../utils/cache_utils.dart';
 import 'premium_plans_page.dart';
 import 'services/user_service.dart';
+import 'webview_test_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -383,6 +384,20 @@ class _ProfilePageState extends State<ProfilePage> {
               isDark: isDark,
             ),
           // --- End Change Banner button ---
+          _buildMenuOption(
+            icon: Icons.web,
+            iconColor: Colors.blueAccent,
+            title: 'Test WebView',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => WebViewTestPage(),
+                ),
+              );
+            },
+            isDark: isDark,
+          ),
           _buildMenuOption(
             icon: Icons.favorite_border,
             iconColor: BuddyTheme.secondaryColor,
