@@ -188,6 +188,34 @@ app.post('/api/webhooks/razorpay', async (req, res) => {
   }
 });
 
+// Create Razorpay Payment Link endpoint
+app.post('/api/payment-links/create', async (req, res) => {
+  try {
+    const { amount, currency = 'INR', description = 'Test Payment', customer = {} } = req.body;
+    if (!amount || !description) {
+      return res.status(400).json({ error: 'amount and description are required' });
+    }
+
+    // Prepare payment link options
+    const options = {
+      amount: Math.round(amount * 100), // Razorpay expects paise
+      currency,
+      description,
+      customer,
+      notify: { sms: true, email: true },
+      reminder_enable: true,
+      callback_url: 'https://example.com/payment-success', // Optional: replace with your app's callback
+      callback_method: 'get',
+    };
+
+    const paymentLink = await razorpay.paymentLink.create(options);
+    res.json({ success: true, payment_link: paymentLink });
+  } catch (error) {
+    console.error('Error creating payment link:', error);
+    res.status(500).json({ error: 'Failed to create payment link', details: error.message });
+  }
+});
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Unhandled error:', error);

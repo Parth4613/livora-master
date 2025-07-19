@@ -253,88 +253,113 @@ class _ListRoomFormState extends State<ListRoomForm>
     _slideAnimationController.forward();
   }
 
-  void _submitForm() async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-
-    // Get the plan price
-    final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
-    if (planPrice <= 0) {
-      ValidationSnackBar.showError(context, 'Invalid plan price');
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) {
+      ValidationSnackBar.showError(context, 'Please fill all required fields');
       return;
     }
 
-    // Calculate expiry date based on selected plan
-    Duration planDuration;
-    switch (_selectedPlan) {
-      case '1Day':
-        planDuration = const Duration(days: 1);
-        break;
-      case '7Day':
-        planDuration = const Duration(days: 7);
-        break;
-      case '15Day':
-        planDuration = const Duration(days: 15);
-        break;
-      case '1Month':
-        planDuration = const Duration(days: 30);
-        break;
-      default:
-        planDuration = const Duration(days: 1);
-    }
-    final now = DateTime.now();
-    final expiryDate = now.add(planDuration);
-
-    // Get username automatically from user account
-    final username = await UserUtils.getCurrentUsername();
-
-    // Prepare data
-    final data = {
-      'userId': userId ?? 'anonymous',
-      'title': _titleController.text,
-      'location': _locationController.text,
-      'rent': _rentController.text,
-      'deposit': _depositController.text,
-      'brokerage': _brokerageController.text,
-      'name': username, // Automatically use username from account
-      'availableFromDate': _availableFromDate?.toIso8601String(),
-      'roomType': _roomType,
-      'flatSize': _flatSize,
-      'furnishing': _furnishing,
-      'hasAttachedBathroom': _hasAttachedBathroom,
-      'currentFlatmates': _currentFlatmates,
-      'maxFlatmates': _maxFlatmates,
-      'genderComposition': _genderComposition,
-      'occupation': _occupation,
-      'facilities': _facilities,
-      'lookingFor': _lookingFor,
-      'foodPreference': _foodPreference,
-      'smokingPolicy': _smokingPolicy,
-      'drinkingPolicy': _drinkingPolicy,
-      'petsPolicy': _petsPolicy,
-      'guestsPolicy': _guestsPolicy,
-      'uploadedPhotos': _uploadedPhotoUrls,
-      'firstPhoto': _uploadedPhotoUrls.values.firstWhere(
-        (url) => url.isNotEmpty,
-        orElse: () => '',
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 16),
+            const Text('Creating listing and processing payment...'),
+          ],
+        ),
       ),
-      'timestamp':
-          FieldValue.serverTimestamp(), // Use server timestamp for consistent sorting
-      'createdAt':
-          FieldValue.serverTimestamp(), // Use server timestamp instead of client time
-      'selectedPlan': _selectedPlan,
-      'expiryDate': expiryDate.toIso8601String(),
-      'visibility': false, // Set to false initially, will be true after payment
-      'paymentStatus': 'pending',
-      'sharePhoneNumber': _sharePhoneNumber,
-      'latitude': _pickedLocation?.latitude,
-      'longitude': _pickedLocation?.longitude,
-    };
+    );
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ValidationSnackBar.showError(context, 'User not authenticated');
+        return;
+      }
+
+      final userId = user.uid;
+
+      // Get the plan price
+      final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
+      if (planPrice <= 0) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ValidationSnackBar.showError(context, 'Invalid plan price');
+        return;
+      }
+
+      // Plan expiry logic
+      Duration planDuration;
+      switch (_selectedPlan) {
+        case '1Day':
+          planDuration = const Duration(days: 1);
+          break;
+        case '7Day':
+          planDuration = const Duration(days: 7);
+          break;
+        case '15Day':
+          planDuration = const Duration(days: 15);
+          break;
+        case '1Month':
+          planDuration = const Duration(days: 30);
+          break;
+        default:
+          planDuration = const Duration(days: 1);
+      }
+      final now = DateTime.now();
+      final expiryDate = now.add(planDuration);
+
+      // Get username automatically from user account
+      final username = await UserUtils.getCurrentUsername();
+      // Get phone number automatically from user account
+      final userPhone = await UserUtils.getCurrentUserPhone();
+
+      final data = {
+        'userId': userId ?? 'anonymous',
+        'title': _titleController.text,
+        'location': _locationController.text,
+        'rent': _rentController.text,
+        'deposit': _depositController.text,
+        'brokerage': _brokerageController.text,
+        'name': username, // Automatically use username from account
+        'availableFromDate': _availableFromDate?.toIso8601String(),
+        'roomType': _roomType,
+        'flatSize': _flatSize,
+        'furnishing': _furnishing,
+        'hasAttachedBathroom': _hasAttachedBathroom,
+        'currentFlatmates': _currentFlatmates,
+        'maxFlatmates': _maxFlatmates,
+        'genderComposition': _genderComposition,
+        'occupation': _occupation,
+        'facilities': _facilities,
+        'lookingFor': _lookingFor,
+        'foodPreference': _foodPreference,
+        'smokingPolicy': _smokingPolicy,
+        'drinkingPolicy': _drinkingPolicy,
+        'petsPolicy': _petsPolicy,
+        'guestsPolicy': _guestsPolicy,
+        'uploadedPhotos': _uploadedPhotoUrls,
+        'firstPhoto': _uploadedPhotoUrls.values.firstWhere(
+          (url) => url.isNotEmpty,
+          orElse: () => '',
+        ),
+        'timestamp': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'selectedPlan': _selectedPlan,
+        'expiryDate': expiryDate.toIso8601String(),
+        'visibility': false, // Set to false initially, will be true after payment
+        'paymentStatus': 'pending',
+        'sharePhoneNumber': _sharePhoneNumber,
+        'latitude': _pickedLocation?.latitude,
+        'longitude': _pickedLocation?.longitude,
+      };
+
       // First, create the listing with pending payment status
-      final newRoomDocRef = await FirebaseFirestore.instance
-          .collection('room_listings')
-          .add(data);
+      final newRoomDocRef = await FirebaseFirestore.instance.collection('room_listings').add(data);
       final newRoomDocId = newRoomDocRef.id;
 
       final geo = GeoFlutterFire();
@@ -351,8 +376,11 @@ class _ListRoomFormState extends State<ListRoomForm>
             }, SetOptions(merge: true));
       }
 
+      // Close loading dialog
+      Navigator.of(context).pop();
+
       // Now process payment
-              await EfficientPaymentService().processListingPayment(
+      await EfficientPaymentService().processListingPayment(
         listingType: 'list_room',
         planName: _selectedPlan,
         amount: planPrice,
@@ -363,6 +391,10 @@ class _ListRoomFormState extends State<ListRoomForm>
       // Invalidate room cache to ensure fresh data
       await CacheUtils.invalidateRoomCache();
     } catch (e) {
+      // Close loading dialog if still open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
       ValidationSnackBar.showError(context, 'Failed to submit: $e');
     }
   }

@@ -250,7 +250,7 @@ class _ListHostelFormState extends State<ListHostelForm>
       imageQuality: 85,
     );
     if (picked != null) {
-      final url = await FirebaseStorageService.uploadImage(kIsWeb ? picked : picked.path);
+      final url = await FirebaseStorageService.uploadImage(picked.path);
       if (url.isNotEmpty) {
         setState(() {
           _uploadedPhotos[photoType] = url;
@@ -314,80 +314,108 @@ class _ListHostelFormState extends State<ListHostelForm>
     }
   }
 
-  void _submitForm() async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-
-    // Get the plan price
-    final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
-    if (planPrice <= 0) {
-      ValidationSnackBar.showError(context, 'Invalid plan price');
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) {
+      ValidationSnackBar.showError(context, 'Please fill all required fields');
       return;
     }
 
-    // Plan expiry logic
-    Duration planDuration;
-    switch (_selectedPlan) {
-      case '1Day':
-        planDuration = const Duration(days: 1);
-        break;
-      case '7Day':
-        planDuration = const Duration(days: 7);
-        break;
-      case '15Day':
-        planDuration = const Duration(days: 15);
-        break;
-      case '1Month':
-        planDuration = const Duration(days: 30);
-        break;
-      default:
-        planDuration = const Duration(days: 1);
-    }
-    final now = DateTime.now();
-    final expiryDate = now.add(planDuration);
-
-    // Get username automatically from user account
-    final username = await UserUtils.getCurrentUsername();
-    // Get phone number automatically from user account
-    final userPhone = await UserUtils.getCurrentUserPhone();
-
-    final data = {
-      'uid': userId,
-      'title': _titleController.text,
-      'hostelType': _hostelType,
-      'hostelFor': _hostelFor,
-      'startingAt':
-          _startingPriceController.text.isNotEmpty
-              ? int.parse(_startingPriceController.text)
-              : 0,
-      'contactPerson': username, // Automatically use username from account
-      'phone': userPhone ?? '', // Automatically use phone from account
-      'address': _addressController.text,
-      'roomTypes': _roomTypes,
-      'facilities': _facilities,
-      'hasEntryTimings': _hasEntryTimings,
-      'entryTime': _entryTime?.format(context),
-      'smokingPolicy': _smokingPolicy,
-      'drinkingPolicy': _drinkingPolicy,
-      'guestsPolicy': _guestsPolicy,
-      'petsPolicy': _petsPolicy,
-      'foodType': _foodType,
-      'availableFromDate': _availableFromDate?.toIso8601String(),
-      'minimumStay': _minimumStay,
-      'bookingMode': _bookingMode,
-      'uploadedPhotos': _uploadedPhotos,
-      'description': _descriptionController.text,
-      'offers': _offersController.text,
-      'specialFeatures': _specialFeaturesController.text,
-      'createdAt': DateTime.now().toIso8601String(),
-      'selectedPlan': _selectedPlan,
-      'expiryDate': expiryDate.toIso8601String(),
-      'visibility': false, // Set to false initially, will be true after payment
-      'paymentStatus': 'pending',
-      'latitude': _pickedLocation?.latitude,
-      'longitude': _pickedLocation?.longitude,
-    };
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 16),
+            const Text('Creating listing and processing payment...'),
+          ],
+        ),
+      ),
+    );
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ValidationSnackBar.showError(context, 'User not authenticated');
+        return;
+      }
+
+      final userId = user.uid;
+
+      // Get the plan price
+      final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
+      if (planPrice <= 0) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ValidationSnackBar.showError(context, 'Invalid plan price');
+        return;
+      }
+
+      // Plan expiry logic
+      Duration planDuration;
+      switch (_selectedPlan) {
+        case '1Day':
+          planDuration = const Duration(days: 1);
+          break;
+        case '7Day':
+          planDuration = const Duration(days: 7);
+          break;
+        case '15Day':
+          planDuration = const Duration(days: 15);
+          break;
+        case '1Month':
+          planDuration = const Duration(days: 30);
+          break;
+        default:
+          planDuration = const Duration(days: 1);
+      }
+      final now = DateTime.now();
+      final expiryDate = now.add(planDuration);
+
+      // Get username automatically from user account
+      final username = await UserUtils.getCurrentUsername();
+      // Get phone number automatically from user account
+      final userPhone = await UserUtils.getCurrentUserPhone();
+
+      final data = {
+        'uid': userId,
+        'title': _titleController.text,
+        'hostelType': _hostelType,
+        'hostelFor': _hostelFor,
+        'startingAt':
+            _startingPriceController.text.isNotEmpty
+                ? int.parse(_startingPriceController.text)
+                : 0,
+        'contactPerson': username, // Automatically use username from account
+        'phone': userPhone ?? '', // Automatically use phone from account
+        'address': _addressController.text,
+        'roomTypes': _roomTypes,
+        'facilities': _facilities,
+        'hasEntryTimings': _hasEntryTimings,
+        'entryTime': _entryTime?.format(context),
+        'smokingPolicy': _smokingPolicy,
+        'drinkingPolicy': _drinkingPolicy,
+        'guestsPolicy': _guestsPolicy,
+        'petsPolicy': _petsPolicy,
+        'foodType': _foodType,
+        'availableFromDate': _availableFromDate?.toIso8601String(),
+        'minimumStay': _minimumStay,
+        'bookingMode': _bookingMode,
+        'uploadedPhotos': _uploadedPhotos,
+        'description': _descriptionController.text,
+        'offers': _offersController.text,
+        'specialFeatures': _specialFeaturesController.text,
+        'createdAt': DateTime.now().toIso8601String(),
+        'selectedPlan': _selectedPlan,
+        'expiryDate': expiryDate.toIso8601String(),
+        'visibility': false, // Set to false initially, will be true after payment
+        'paymentStatus': 'pending',
+        'latitude': _pickedLocation?.latitude,
+        'longitude': _pickedLocation?.longitude,
+      };
+
       // First, create the listing with pending payment status
       final newHostelDocRef = await FirebaseFirestore.instance.collection('hostel_listings').add(data);
       final newHostelDocId = newHostelDocRef.id;
@@ -406,8 +434,11 @@ class _ListHostelFormState extends State<ListHostelForm>
             }, SetOptions(merge: true));
       }
 
+      // Close loading dialog
+      Navigator.of(context).pop();
+
       // Now process payment
-              await EfficientPaymentService().processListingPayment(
+      await EfficientPaymentService().processListingPayment(
         listingType: 'list_hostelpg',
         planName: _selectedPlan,
         amount: planPrice,
@@ -418,6 +449,10 @@ class _ListHostelFormState extends State<ListHostelForm>
       // Invalidate hostel cache to ensure fresh data
       await CacheUtils.invalidateHostelCache();
     } catch (e) {
+      // Close loading dialog if still open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
       ValidationSnackBar.showError(context, 'Failed to submit: $e');
     }
   }

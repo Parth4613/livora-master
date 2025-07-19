@@ -142,6 +142,36 @@ app.post('/api/payments/verify', async (req, res) => {
   }
 });
 
+// Get order details endpoint
+app.get('/api/orders/:order_id', async (req, res) => {
+  try {
+    const { order_id } = req.params;
+    
+    const order = await razorpay.orders.fetch(order_id);
+    
+    res.json({
+      success: true,
+      order: {
+        id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        receipt: order.receipt,
+        status: order.status,
+        notes: order.notes,
+        created_at: order.created_at
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching order:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch order details',
+      details: error.message
+    });
+  }
+});
+
 // Get payment details endpoint
 app.get('/api/payments/:payment_id', async (req, res) => {
   try {

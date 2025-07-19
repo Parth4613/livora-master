@@ -321,103 +321,132 @@ class _ListServiceFormState extends State<ListServiceForm>
     _slideAnimationController.forward();
   }
 
-  void _submitForm() async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    
-    // Get the plan price
-    final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
-    if (planPrice <= 0) {
-      ValidationSnackBar.showError(context, 'Invalid plan price');
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) {
+      ValidationSnackBar.showError(context, 'Please fill all required fields');
       return;
     }
-    
-    // Plan-based expiry logic
-    Duration planDuration;
-    switch (_selectedPlan) {
-      case '1Day':
-        planDuration = const Duration(days: 1);
-        break;
-      case '7Day':
-        planDuration = const Duration(days: 7);
-        break;
-      case '15Day':
-        planDuration = const Duration(days: 15);
-        break;
-      case '1Month':
-        planDuration = const Duration(days: 30);
-        break;
-      default:
-        planDuration = const Duration(days: 1);
-    }
-    final now = DateTime.now();
-    final expiryDate = now.add(planDuration);
 
-    // Get username automatically from user account
-    final username = await UserUtils.getCurrentUsername();
-    // Get phone number automatically from user account
-    final userPhone = await UserUtils.getCurrentUserPhone();
-
-    final data = {
-      'userId': userId,
-      'serviceType': _serviceType,
-      'serviceName': _serviceNameController.text,
-      'location': _locationController.text,
-      'description': _descriptionController.text,
-      'contact': userPhone ?? '', // Automatically use phone from account
-      'ownerName': username, // Automatically use username from account
-      'openingTime':
-          _openingTime != null ? _openingTime!.format(context) : null,
-      'closingTime':
-          _closingTime != null ? _closingTime!.format(context) : null,
-      'offDay': _offDay,
-      'createdAt': now.toIso8601String(),
-      'coverPhoto': _coverPhotoUrl,
-      'additionalPhotos': _additionalPhotoUrls,
-      // Library-specific
-      if (_serviceType == 'Library') ...{
-        'libraryType': _libraryType,
-        'seatingCapacity': int.tryParse(_seatingCapacityController.text) ?? 0,
-        'acStatus': _acStatus,
-        'charges': _chargesController.text,
-        'chargeType': _chargeType,
-        'hasInternet': _hasInternet,
-        'hasStudyCabin': _hasStudyCabin,
-      },
-      // Café-specific
-      if (_serviceType == 'Café') ...{
-        'cuisineType': _cuisineType,
-        'hasSeating': _hasSeating,
-        'priceRange': _priceRangeController.text,
-        'hasWifi': _hasWifi,
-        'hasPowerSockets': _hasPowerSockets,
-      },
-      // Mess-specific
-      if (_serviceType == 'Mess') ...{
-        'foodType': _foodType,
-        'charges': _monthlyPriceController.text,
-        'seatingCapacity': int.tryParse(_seatingCapacityController.text) ?? 0,
-        'mealTimings': _mealTimings,
-        'hasHomeDelivery': _hasHomeDelivery,
-        'hasTiffinService': _hasTiffinService,
-      },
-      // Other
-      if (_serviceType == 'Other') ...{
-        'pricing': _pricingController.text,
-        'serviceTypeOther': _serviceTypeOtherController.text,
-        'usefulness': _usefulnessController.text,
-      },
-      'selectedPlan': _selectedPlan,
-      'expiryDate': expiryDate.toIso8601String(),
-      'visibility': false, // Set to false initially, will be true after payment
-      'paymentStatus': 'pending',
-      'latitude': _pickedLocation?.latitude,
-      'longitude': _pickedLocation?.longitude,
-    };
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 16),
+            const Text('Creating listing and processing payment...'),
+          ],
+        ),
+      ),
+    );
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ValidationSnackBar.showError(context, 'User not authenticated');
+        return;
+      }
+
+      final userId = user.uid;
+
+      // Get the plan price
+      final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
+      if (planPrice <= 0) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ValidationSnackBar.showError(context, 'Invalid plan price');
+        return;
+      }
+
+      // Plan expiry logic
+      Duration planDuration;
+      switch (_selectedPlan) {
+        case '1Day':
+          planDuration = const Duration(days: 1);
+          break;
+        case '7Day':
+          planDuration = const Duration(days: 7);
+          break;
+        case '15Day':
+          planDuration = const Duration(days: 15);
+          break;
+        case '1Month':
+          planDuration = const Duration(days: 30);
+          break;
+        default:
+          planDuration = const Duration(days: 1);
+      }
+      final now = DateTime.now();
+      final expiryDate = now.add(planDuration);
+
+      // Get username automatically from user account
+      final username = await UserUtils.getCurrentUsername();
+      // Get phone number automatically from user account
+      final userPhone = await UserUtils.getCurrentUserPhone();
+
+      final data = {
+        'userId': userId,
+        'serviceType': _serviceType,
+        'serviceName': _serviceNameController.text,
+        'location': _locationController.text,
+        'description': _descriptionController.text,
+        'contact': userPhone ?? '', // Automatically use phone from account
+        'ownerName': username, // Automatically use username from account
+        'openingTime':
+            _openingTime != null ? _openingTime!.format(context) : null,
+        'closingTime':
+            _closingTime != null ? _closingTime!.format(context) : null,
+        'offDay': _offDay,
+        'createdAt': now.toIso8601String(),
+        'coverPhoto': _coverPhotoUrl,
+        'additionalPhotos': _additionalPhotoUrls,
+        // Library-specific
+        if (_serviceType == 'Library') ...{
+          'libraryType': _libraryType,
+          'seatingCapacity': int.tryParse(_seatingCapacityController.text) ?? 0,
+          'acStatus': _acStatus,
+          'charges': _chargesController.text,
+          'chargeType': _chargeType,
+          'hasInternet': _hasInternet,
+          'hasStudyCabin': _hasStudyCabin,
+        },
+        // Café-specific
+        if (_serviceType == 'Café') ...{
+          'cuisineType': _cuisineType,
+          'hasSeating': _hasSeating,
+          'priceRange': _priceRangeController.text,
+          'hasWifi': _hasWifi,
+          'hasPowerSockets': _hasPowerSockets,
+        },
+        // Mess-specific
+        if (_serviceType == 'Mess') ...{
+          'foodType': _foodType,
+          'charges': _monthlyPriceController.text,
+          'seatingCapacity': int.tryParse(_seatingCapacityController.text) ?? 0,
+          'mealTimings': _mealTimings,
+          'hasHomeDelivery': _hasHomeDelivery,
+          'hasTiffinService': _hasTiffinService,
+        },
+        // Other
+        if (_serviceType == 'Other') ...{
+          'pricing': _pricingController.text,
+          'serviceTypeOther': _serviceTypeOtherController.text,
+          'usefulness': _usefulnessController.text,
+        },
+        'selectedPlan': _selectedPlan,
+        'expiryDate': expiryDate.toIso8601String(),
+        'visibility': false, // Set to false initially, will be true after payment
+        'paymentStatus': 'pending',
+        'latitude': _pickedLocation?.latitude,
+        'longitude': _pickedLocation?.longitude,
+      };
+
       // First, create the listing with pending payment status
       final newServiceDocRef = await FirebaseFirestore.instance.collection('service_listings').add(data);
       final newServiceDocId = newServiceDocRef.id;
+
       final geo = GeoFlutterFire();
       if (_pickedLocation != null) {
         final geoPoint = geo.point(
@@ -431,6 +460,9 @@ class _ListServiceFormState extends State<ListServiceForm>
               'position': geoPoint.data,
             }, SetOptions(merge: true));
       }
+
+      // Close loading dialog
+      Navigator.of(context).pop();
 
       // Now process payment
       print('Starting payment process for listing: $newServiceDocId');
@@ -454,6 +486,10 @@ class _ListServiceFormState extends State<ListServiceForm>
       // Invalidate service cache to ensure fresh data
       await CacheUtils.invalidateServiceCache();
     } catch (e) {
+      // Close loading dialog if still open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
       ValidationSnackBar.showError(context, 'Failed to submit: $e');
     }
   }
@@ -1647,7 +1683,7 @@ class _ListServiceFormState extends State<ListServiceForm>
         ),
       );
       try {
-        String url = await FirebaseStorageService.uploadImage(kIsWeb ? image : image.path);
+        String url = await FirebaseStorageService.uploadImage(image.path);
         setState(() {
           _coverPhotoUrl = url;
         });
@@ -1671,7 +1707,7 @@ class _ListServiceFormState extends State<ListServiceForm>
         ),
       );
       try {
-        String url = await FirebaseStorageService.uploadImage(kIsWeb ? image : image.path);
+        String url = await FirebaseStorageService.uploadImage(image.path);
         setState(() {
           _additionalPhotoUrls.add(url);
         });

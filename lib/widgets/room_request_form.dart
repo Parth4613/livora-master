@@ -273,114 +273,101 @@ class _RoomRequestFormState extends State<RoomRequestForm>
   }
 
   Future<void> _submitForm() async {
-    // Validate required fields
-    if (_ageController.text.isEmpty ||
-        _locationController.text.isEmpty ||
-        _minBudgetController.text.isEmpty ||
-        _maxBudgetController.text.isEmpty) {
+    if (!_formKey.currentState!.validate()) {
       ValidationSnackBar.showError(context, 'Please fill all required fields');
       return;
     }
-    
-    // Validate profile image is selected
-    if (_profileImage == null) {
-      ValidationSnackBar.showError(context, 'Please select a profile photo');
-      return;
-    }
-    
-    if (_formKey.currentState == null || !_formKey.currentState!.validate())
-      return;
 
-    setState(() => _isUploading = true);
-
-    // Get the plan price
-    final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
-    if (planPrice <= 0) {
-      ValidationSnackBar.showError(context, 'Invalid plan price');
-      setState(() => _isUploading = false);
-      return;
-    }
-
-    // Plan expiry logic
-    Duration planDuration;
-    switch (_selectedPlan) {
-      case '1Day':
-        planDuration = const Duration(days: 1);
-        break;
-      case '7Day':
-        planDuration = const Duration(days: 7);
-        break;
-      case '15Day':
-        planDuration = const Duration(days: 15);
-        break;
-      case '1Month':
-        planDuration = const Duration(days: 30);
-        break;
-      default:
-        planDuration = const Duration(days: 1);
-    }
-    final now = DateTime.now();
-    final expiryDate = now.add(planDuration);
-
-    // Ensure user is logged in
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ValidationSnackBar.showError(context, 'Please login first');
-      setState(() => _isUploading = false);
-      return;
-    }
-
-    // Upload profile image (required)
-    String profilePhotoUrl;
-    try {
-      print('Starting profile photo upload...');
-      print('Profile image type: ${_profileImage.runtimeType}');
-      print('Profile image path: ${_profileImage.path}');
-      
-      profilePhotoUrl = await FirebaseStorageService.uploadImage(
-        _profileImage,
-      );
-      print('Profile photo uploaded successfully: $profilePhotoUrl');
-    } catch (e) {
-      print('Error uploading profile photo: $e');
-      ValidationSnackBar.showError(context, 'Error uploading image: $e');
-      setState(() => _isUploading = false);
-      return;
-    }
-
-    // Get username automatically from user account
-    final username = await UserUtils.getCurrentUsername();
-
-    final requestData = {
-      'userId': user.uid,
-      'name': username, // Automatically use username from account
-      'age': int.tryParse(_ageController.text) ?? 0,
-      'gender': _gender,
-      'occupation': _occupation,
-      'profilePhotoUrl': profilePhotoUrl,
-      'location': _locationController.text,
-      'minBudget': int.tryParse(_minBudgetController.text) ?? 0,
-      'maxBudget': int.tryParse(_maxBudgetController.text) ?? 0,
-      'moveInDate': _moveInDate,
-      'preferredRoomType': _preferredRoomType,
-      'preferredFlatmates': _preferredFlatmates,
-      'preferredFlatmateGender': _preferredFlatmateGender,
-      'preferredRoomSize': _preferredRoomSize,
-      'foodPreference': _foodPreference,
-      'smokingPreference': _smokingPreference,
-      'drinkingPreference': _drinkingPreference,
-      'furnishingPreference': _furnishingPreference,
-      'phone': '', // Empty string since contact details step was removed
-      'selectedPlan': _selectedPlan,
-      'createdAt': FieldValue.serverTimestamp(),
-      'expiryDate': expiryDate.toIso8601String(),
-      'visibility': false, // Set to false initially, will be true after payment
-      'paymentStatus': 'pending',
-    };
-
-    print('Submitting flatmate request with data: ${requestData.toString()}');
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 16),
+            const Text('Creating request and processing payment...'),
+          ],
+        ),
+      ),
+    );
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ValidationSnackBar.showError(context, 'User not authenticated');
+        return;
+      }
+
+      final userId = user.uid;
+
+      // Get the plan price
+      final planPrice = _planPrices[_selectedPlan]?['actual'] ?? 0.0;
+      if (planPrice <= 0) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ValidationSnackBar.showError(context, 'Invalid plan price');
+        return;
+      }
+
+      // Plan expiry logic
+      Duration planDuration;
+      switch (_selectedPlan) {
+        case '1Day':
+          planDuration = const Duration(days: 1);
+          break;
+        case '7Day':
+          planDuration = const Duration(days: 7);
+          break;
+        case '15Day':
+          planDuration = const Duration(days: 15);
+          break;
+        case '1Month':
+          planDuration = const Duration(days: 30);
+          break;
+        default:
+          planDuration = const Duration(days: 1);
+      }
+      final now = DateTime.now();
+      final expiryDate = now.add(planDuration);
+
+      // Get username automatically from user account
+      final username = await UserUtils.getCurrentUsername();
+      // Get phone number automatically from user account
+      final userPhone = await UserUtils.getCurrentUserPhone();
+
+      final requestData = {
+        'userId': userId,
+        'name': username, // Automatically use username from account
+        'phone': userPhone ?? '', // Automatically use phone from account
+        'email': user.email ?? '',
+        'age': _ageController.text,
+        'gender': _gender,
+        'occupation': _occupation,
+        'budget': _minBudgetController.text, // Assuming _minBudgetController is the budget field
+        'location': _locationController.text,
+        'roomType': _preferredRoomType,
+        'furnishing': _furnishingPreference,
+        'foodPreference': _foodPreference,
+        'smokingPolicy': _smokingPreference,
+        'drinkingPolicy': _drinkingPreference,
+        'petsPolicy': 'No', // Placeholder, needs actual implementation
+        'guestsPolicy': 'No', // Placeholder, needs actual implementation
+        'moveInDate': _moveInDate?.toIso8601String(),
+        'description': '', // Placeholder, needs actual implementation
+        'profilePhoto': _profileImage != null ? await FirebaseStorageService.uploadImage(_profileImage!.path) : null,
+        'createdAt': now.toIso8601String(),
+        'selectedPlan': _selectedPlan,
+        'expiryDate': expiryDate.toIso8601String(),
+        'visibility': false, // Set to false initially, will be true after payment
+        'paymentStatus': 'pending',
+        'latitude': null, // Placeholder, needs actual implementation
+        'longitude': null, // Placeholder, needs actual implementation
+      };
+
+      print('Submitting flatmate request with data: ${requestData.toString()}');
+
       // First, create the request with pending payment status
       final docRef = await FirebaseFirestore.instance
           .collection('roomRequests')
@@ -388,8 +375,11 @@ class _RoomRequestFormState extends State<RoomRequestForm>
       
       print('Flatmate request submitted successfully with ID: ${docRef.id}');
 
+      // Close loading dialog
+      Navigator.of(context).pop();
+
       // Now process payment
-              await EfficientPaymentService().processListingPayment(
+      await EfficientPaymentService().processListingPayment(
         listingType: 'room_request',
         planName: _selectedPlan,
         amount: planPrice,
@@ -401,6 +391,10 @@ class _RoomRequestFormState extends State<RoomRequestForm>
       await CacheUtils.invalidateFlatmateCache();
       print('Flatmate cache invalidated');
     } catch (e) {
+      // Close loading dialog if still open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
       print('Error submitting flatmate request: $e');
       if (mounted) {
         ValidationSnackBar.showError(context, 'Error submitting request: $e');

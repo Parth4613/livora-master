@@ -24,10 +24,28 @@ class EfficientPaymentService {
     if (kIsWeb) {
       return 'http://localhost:3000'; // For web development
     } else {
-      return 'http://10.92.18.47:3000'; // For real Android device
+      // For Android device - try multiple URLs
+      // Uncomment the line below for testing with localhost
+      return 'http://localhost:3000'; // For testing - use this if IP address fails
+      // return 'http://10.92.18.47:3000'; // For real Android device
     }
   }
   // static const String _backendUrl = 'https://your-production-backend.com'; // For production
+
+  // Test backend connectivity
+  static Future<bool> testBackendConnectivity() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_backendUrl/health'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 5));
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Backend connectivity test failed: $e');
+      return false;
+    }
+  }
 
   Future<void> processPremiumPlanPayment({
     required String planName,
@@ -76,12 +94,26 @@ class EfficientPaymentService {
       return;
     }
 
+    // Test backend connectivity first
+    final isBackendConnected = await testBackendConnectivity();
+    if (!isBackendConnected) {
+      _showErrorSnackBar(context, 'Unable to connect to payment server. Please check your internet connection and try again.');
+      return;
+    }
+
     try {
       if (kIsWeb) {
-        print('Processing web payment');
-        // Web implementation - use browser-based Razorpay
-        final order = await _createListingOrder(listingType, planName, amount, listingId, user.uid);
-        await _processWebPayment(order, context);
+        print('Processing web payment with Razorpay Payment Link');
+        // Create payment link on backend
+        final paymentLinkUrl = await _createPaymentLinkWeb(listingType, planName, amount, listingId, user.uid);
+        if (paymentLinkUrl == null) {
+          throw Exception('Failed to get payment link URL');
+        }
+        if (await canLaunchUrl(Uri.parse(paymentLinkUrl))) {
+          await launchUrl(Uri.parse(paymentLinkUrl), mode: LaunchMode.externalApplication);
+        } else {
+          _showErrorSnackBar(context, 'Could not open payment link');
+        }
       } else {
         print('Processing mobile payment with RazorpayInAppService');
         // Mobile implementation - use Razorpay In-App WebView
@@ -129,34 +161,34 @@ class EfficientPaymentService {
     }
   }
 
-  Future<Map<String, dynamic>> _createListingOrder(String listingType, String planName, double amount, String listingId, String userId) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_backendUrl/api/orders/create'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'amount': amount,
-          'currency': 'INR',
-          'receipt': 'receipt_${DateTime.now().millisecondsSinceEpoch}',
-          'notes': {
-            'planName': planName,
-            'listingType': listingType,
-            'listingId': listingId,
-            'userId': userId,
-            'type': 'listing',
-          },
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['order'];
-      } else {
-        throw Exception('Failed to create listing order: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error creating listing order: $e');
-      throw Exception('Failed to create listing order: $e');
+  Future<String?> _createPaymentLinkWeb(String listingType, String planName, double amount, String listingId, String userId) async {
+    final response = await http.post(
+      Uri.parse('$_backendUrl/api/payment-links/create'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'amount': amount,
+        'currency': 'INR',
+        'description': 'Listing Payment: $planName',
+        'customer': {
+          'name': FirebaseAuth.instance.currentUser?.displayName ?? 'User',
+          'email': FirebaseAuth.instance.currentUser?.email ?? 'test@example.com',
+          'contact': '9875067129',
+        },
+        'notes': {
+          'planName': planName,
+          'listingType': listingType,
+          'listingId': listingId,
+          'userId': userId,
+          'type': 'listing',
+        },
+      }),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['payment_link']?['short_url'];
+    } else {
+      print('Failed to create payment link: ${response.statusCode}');
+      return null;
     }
   }
 
@@ -347,27 +379,96 @@ class EfficientPaymentService {
 
   Future<void> _activateListing(Map<String, dynamic> response, BuildContext context) async {
     try {
-      // Update listing with payment info
-      // In production, get listing details from order
       final paymentId = response['razorpay_payment_id'];
+      final orderId = response['razorpay_order_id'];
       
-      // For now, we'll just show success
-      if (context.mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => PaymentSuccessPage(
-              title: 'Payment Successful!',
-              message: 'Your listing is now active and visible to users.',
-              onContinue: () {
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              },
-            ),
-          ),
-        );
+      // Get order details from backend to determine listing type and ID
+      final orderResponse = await http.get(
+        Uri.parse('$_backendUrl/api/orders/$orderId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (orderResponse.statusCode == 200) {
+        final orderData = jsonDecode(orderResponse.body);
+        final notes = orderData['order']['notes'] ?? {};
+        final listingType = notes['listingType'] ?? '';
+        final listingId = notes['listingId'] ?? '';
+        final planName = notes['planName'] ?? '';
+
+        if (listingId.isNotEmpty) {
+          // Update the listing to make it visible
+          final collectionName = _getCollectionName(listingType);
+          
+          await FirebaseFirestore.instance
+              .collection(collectionName)
+              .doc(listingId)
+              .update({
+            'visibility': true,
+            'paymentStatus': 'completed',
+            'paymentId': paymentId,
+            'orderId': orderId,
+            'planName': planName,
+            'activatedAt': FieldValue.serverTimestamp(),
+            'paymentCompletedAt': FieldValue.serverTimestamp(),
+          });
+
+          // Save detailed payment record
+          await FirebaseFirestore.instance
+              .collection('payments')
+              .add({
+            'userId': FirebaseAuth.instance.currentUser?.uid,
+            'paymentId': paymentId,
+            'orderId': orderId,
+            'signature': response['razorpay_signature'],
+            'amount': response['amount'] / 100, // Convert from paise
+            'currency': 'INR',
+            'type': 'listing',
+            'listingType': listingType,
+            'planName': planName,
+            'listingId': listingId,
+            'status': 'success',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+          // Navigate to success page
+          if (context.mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => PaymentSuccessPage(
+                  title: 'Payment Successful!',
+                  message: 'Your listing is now active and visible to users.',
+                  orderId: orderId,
+                  onContinue: () {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                ),
+              ),
+            );
+          }
+        } else {
+          throw Exception('Listing ID not found in order');
+        }
+      } else {
+        throw Exception('Failed to fetch order details');
       }
     } catch (e) {
       print('Error activating listing: $e');
       _showErrorSnackBar(context, 'Error activating listing: $e');
+    }
+  }
+
+  String _getCollectionName(String listingType) {
+    switch (listingType) {
+      case 'list_hostelpg':
+        return 'hostel_listings';
+      case 'list_room':
+        return 'room_listings';
+      case 'list_service':
+        return 'service_listings';
+      case 'room_request':
+        return 'roomRequests';
+      default:
+        return 'listings';
     }
   }
 
@@ -407,6 +508,51 @@ class EfficientPaymentService {
     } catch (e) {
       print('Error checking payment status: $e');
       _showErrorSnackBar(context, 'Error verifying payment: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getPaymentStatus(String orderId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_backendUrl/api/orders/$orderId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['order'];
+      } else {
+        print('Failed to get payment status: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('Error getting payment status: $e');
+      return null;
+    }
+  }
+
+  Future<void> retryPayment(String orderId, BuildContext context) async {
+    try {
+      final orderDetails = await getPaymentStatus(orderId);
+      if (orderDetails != null) {
+        final notes = orderDetails['notes'] ?? {};
+        final listingType = notes['listingType'] ?? '';
+        final planName = notes['planName'] ?? '';
+        final listingId = notes['listingId'] ?? '';
+        final amount = (orderDetails['amount'] ?? 0) / 100; // Convert from paise
+
+        await processListingPayment(
+          listingType: listingType,
+          planName: planName,
+          amount: amount,
+          listingId: listingId,
+          context: context,
+        );
+      } else {
+        _showErrorSnackBar(context, 'Could not retrieve order details');
+      }
+    } catch (e) {
+      _showErrorSnackBar(context, 'Error retrying payment: $e');
     }
   }
 

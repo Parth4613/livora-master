@@ -21,7 +21,14 @@ class RazorpayInAppService {
     if (kIsWeb) {
       return 'http://localhost:3000'; // For web development
     } else {
-      return 'http://10.92.18.47:3000'; // For real Android device
+      // For Android device - try multiple URLs
+      try {
+        // First try the device-specific IP
+        return 'http://10.92.18.47:3000';
+      } catch (e) {
+        // Fallback to localhost if device IP fails
+        return 'http://localhost:3000';
+      }
     }
   }
   // static const String _backendUrl = 'https://your-production-backend.com'; // For production
@@ -223,49 +230,56 @@ class _InAppPaymentPageState extends State<InAppPaymentPage> {
     _paymentCompleted = true;
 
     try {
-      // Extract payment details from URL or use mock data for testing
-      final paymentId = 'pay_${DateTime.now().millisecondsSinceEpoch}';
-      final signature = 'signature_${DateTime.now().millisecondsSinceEpoch}';
+      // Extract payment details from URL parameters
+      final uri = Uri.parse(url);
+      final paymentId = uri.queryParameters['razorpay_payment_id'] ?? 'pay_${DateTime.now().millisecondsSinceEpoch}';
+      final orderId = uri.queryParameters['razorpay_order_id'] ?? widget.orderId;
+      final signature = uri.queryParameters['razorpay_signature'] ?? 'signature_${DateTime.now().millisecondsSinceEpoch}';
 
-      // Save payment record
-      await FirebaseFirestore.instance
-          .collection('payments')
-          .add({
-        'userId': FirebaseAuth.instance.currentUser?.uid,
-        'paymentId': paymentId,
-        'orderId': widget.orderId,
-        'signature': signature,
-        'amount': widget.amount,
-        'currency': 'INR',
-        'type': 'listing',
-        'listingType': widget.listingType,
-        'planName': widget.planName,
-        'listingId': widget.listingId,
-        'status': 'success',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      // Verify payment with backend
+      final verifyResponse = await http.post(
+        Uri.parse('${RazorpayInAppService._backendUrl}/api/payments/verify'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'razorpay_order_id': orderId,
+          'razorpay_payment_id': paymentId,
+          'razorpay_signature': signature,
+        }),
+      );
 
-      // Update listing visibility
-      await _activateListing(paymentId);
+      if (verifyResponse.statusCode == 200) {
+        final verifyData = jsonDecode(verifyResponse.body);
+        if (verifyData['success']) {
+          // Payment verified successfully
+          await _savePaymentRecord(paymentId, orderId, signature);
+          await _activateListing(paymentId);
 
-      // Show success page
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => PaymentSuccessPage(
-              title: 'Payment Successful!',
-              message: 'Your listing is now active and visible to users.',
-              onContinue: () {
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              },
-            ),
-          ),
-        );
+          // Show success page
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => PaymentSuccessPage(
+                  title: 'Payment Successful!',
+                  message: 'Your listing is now active and visible to users.',
+                  orderId: orderId,
+                  onContinue: () {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                ),
+              ),
+            );
+          }
+        } else {
+          throw Exception('Payment verification failed: ${verifyData['error']}');
+        }
+      } else {
+        throw Exception('Payment verification failed: ${verifyResponse.statusCode}');
       }
     } catch (e) {
       print('Error handling payment success: $e');
       if (mounted) {
         _showErrorSnackBar('Error processing payment: $e');
+        Navigator.of(context).pop();
       }
     }
   }
@@ -327,6 +341,25 @@ class _InAppPaymentPageState extends State<InAppPaymentPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _savePaymentRecord(String paymentId, String orderId, String signature) async {
+    await FirebaseFirestore.instance
+        .collection('payments')
+        .add({
+      'userId': FirebaseAuth.instance.currentUser?.uid,
+      'paymentId': paymentId,
+      'orderId': orderId,
+      'signature': signature,
+      'amount': widget.amount,
+      'currency': 'INR',
+      'type': 'listing',
+      'listingType': widget.listingType,
+      'planName': widget.planName,
+      'listingId': widget.listingId,
+      'status': 'success',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
   @override

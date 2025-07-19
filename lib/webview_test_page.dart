@@ -5,73 +5,129 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
 
-String generateRazorpayCheckoutHtml({
-  required String key,
-  required int amount, // in paise
-  required String currency,
-  required String name,
-  required String description,
-  required String orderId,
-  required String prefillName,
-  required String prefillEmail,
-  String themeColor = '#3B82F6',
-}) {
-  return '''
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Razorpay Payment</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <style>
-      body { font-family: Arial, sans-serif; text-align: center; margin-top: 40px; }
-    </style>
-  </head>
-  <body>
-    <h2>Processing Payment...</h2>
-    <script>
-      var options = {
-        key: '$key',
-        amount: $amount,
-        currency: '$currency',
-        name: '$name',
-        description: '$description',
-        order_id: '$orderId',
-        prefill: {
-          name: '$prefillName',
-          email: '$prefillEmail'
-        },
-        theme: {
-          color: '$themeColor'
-        },
-        handler: function (response){
-          document.body.innerHTML = '<h2>Payment Success!</h2><pre>' + JSON.stringify(response, null, 2) + '</pre>';
-        },
-        modal: {
-          ondismiss: function(){
-            document.body.innerHTML = '<h2>Payment Cancelled</h2>';
-          }
-        }
-      };
-      var rzp = new Razorpay(options);
-      rzp.open();
-    </script>
-  </body>
-</html>
-''';
-}
-
-class WebViewTestPage extends StatefulWidget {
+class RazorpayWebViewPage extends StatefulWidget {
   @override
-  _WebViewTestPageState createState() => _WebViewTestPageState();
+  _RazorpayWebViewPageState createState() => _RazorpayWebViewPageState();
 }
 
-class _WebViewTestPageState extends State<WebViewTestPage> {
+class _RazorpayWebViewPageState extends State<RazorpayWebViewPage> {
   final TextEditingController _amountController = TextEditingController(text: '10');
   bool _isLoading = false;
-  String? _paymentUrl;
   WebViewController? _controller;
-  bool _launchedOnWeb = false;
+  String _paymentStatus = 'Enter amount and click Pay to start payment';
+  String? _currentOrderId;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeWebView();
+  }
+
+  void _initializeWebView() {
+    if (!kIsWeb) {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (String url) {
+              print('Page started loading: $url');
+            },
+            onPageFinished: (String url) {
+              print('Page finished loading: $url');
+              setState(() {
+                _isLoading = false;
+              });
+            },
+            onWebResourceError: (WebResourceError error) {
+              print('WebView error: ${error.description}');
+              setState(() {
+                _paymentStatus = 'Error: ${error.description}';
+                _isLoading = false;
+              });
+            },
+            onNavigationRequest: (NavigationRequest request) {
+              print('Navigation request: ${request.url}');
+              
+              // Handle custom URL schemes for payment callbacks
+              if (request.url.startsWith('razorpay://') || 
+                  request.url.contains('payment_success') ||
+                  request.url.contains('payment_failure') ||
+                  request.url.contains('payment_cancelled')) {
+                _handlePaymentCallback(request.url);
+                return NavigationDecision.prevent;
+              }
+              
+              return NavigationDecision.navigate;
+            },
+          ),
+        )
+        ..addJavaScriptChannel(
+          'RazorpayBridge',
+          onMessageReceived: (JavaScriptMessage message) {
+            _handleJavaScriptMessage(message.message);
+          },
+        );
+    }
+  }
+
+  void _handleJavaScriptMessage(String message) {
+    print('JavaScript message: $message');
+    try {
+      final data = jsonDecode(message);
+      switch (data['type']) {
+        case 'payment_success':
+          _showSuccess('Payment Successful!');
+          setState(() {
+            _paymentStatus = 'Payment completed successfully!\nPayment ID: ${data['payment_id']}';
+          });
+          break;
+        case 'payment_error':
+          _showError('Payment Failed!');
+          setState(() {
+            _paymentStatus = 'Payment failed: ${data['error'] ?? 'Unknown error'}';
+          });
+          break;
+        case 'payment_cancelled':
+          setState(() {
+            _paymentStatus = 'Payment cancelled by user';
+          });
+          break;
+        case 'razorpay_loaded':
+          setState(() {
+            _paymentStatus = 'Payment gateway loaded successfully';
+          });
+          break;
+        case 'razorpay_error':
+          _showError('Razorpay initialization failed');
+          setState(() {
+            _paymentStatus = 'Failed to initialize payment gateway';
+          });
+          break;
+      }
+    } catch (e) {
+      print('Error parsing JavaScript message: $e');
+    }
+  }
+
+  void _handlePaymentCallback(String url) {
+    print('Payment callback URL: $url');
+    
+    if (url.contains('payment_success')) {
+      _showSuccess('Payment Successful!');
+      setState(() {
+        _paymentStatus = 'Payment completed successfully!';
+      });
+    } else if (url.contains('payment_failure')) {
+      _showError('Payment Failed!');
+      setState(() {
+        _paymentStatus = 'Payment failed. Please try again.';
+      });
+    } else if (url.contains('payment_cancelled')) {
+      setState(() {
+        _paymentStatus = 'Payment cancelled by user';
+      });
+    }
+  }
 
   Future<void> _startPayment() async {
     final amountText = _amountController.text.trim();
@@ -79,152 +135,241 @@ class _WebViewTestPageState extends State<WebViewTestPage> {
       _showError('Please enter a valid amount');
       return;
     }
+
     setState(() {
       _isLoading = true;
-      _paymentUrl = null;
-      _launchedOnWeb = false;
+      _paymentStatus = 'Creating payment link...';
     });
+
     try {
-      const backendUrl = 'http://10.92.18.47:3000'; // Update if needed
-      final response = await http.post(
-        Uri.parse('$backendUrl/api/orders/create'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'amount': amountText, // Send as rupees string
-          'currency': 'INR',
-          'receipt': 'test_receipt_${DateTime.now().millisecondsSinceEpoch}',
-          'notes': {
-            'planName': 'Test Plan',
-            'listingType': 'test',
-            'listingId': 'test123',
-            'userId': 'testuser',
-            'type': 'listing',
-          },
-        }),
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final order = data['order'];
-        final paymentUrl = 'https://checkout.razorpay.com/v1/checkout.html?'
-            'key=rzp_test_O9xBxveMFHkkdp'
-            '&amount=${order['amount']}'
-            '&currency=${order['currency']}'
-            '&name=Buddy%20App'
-            '&description=Test%20Payment'
-            '&order_id=${order['id']}'
-            '&prefill[name]=Test%20User'
-            '&prefill[email]=test@example.com'
-            '&theme[color]=3B82F6';
-        print('Razorpay Payment URL: ' + paymentUrl);
-        if (kIsWeb) {
-          // On web, launch in new tab
-          await launchUrl(Uri.parse(paymentUrl), mode: LaunchMode.externalApplication);
+      final paymentLinkUrl = await _createPaymentLink(amountText);
+      if (paymentLinkUrl == null) {
+        throw Exception('Failed to get payment link URL');
+      }
+      setState(() {
+        _paymentStatus = 'Loading payment link...';
+      });
+      if (kIsWeb) {
+        // On web, open payment link in a new tab
+        if (await canLaunchUrl(Uri.parse(paymentLinkUrl))) {
+          await launchUrl(Uri.parse(paymentLinkUrl), mode: LaunchMode.externalApplication);
           setState(() {
-            _launchedOnWeb = true;
-            _isLoading = false;
+            _paymentStatus = 'Payment link opened in new tab.';
           });
         } else {
-          // Use dynamic HTML with checkout.js for mobile
-          final htmlString = generateRazorpayCheckoutHtml(
-            key: 'rzp_test_O9xBxveMFHkkdp',
-            amount: order['amount'],
-            currency: order['currency'],
-            name: 'Buddy App',
-            description: 'Test Payment',
-            orderId: order['id'],
-            prefillName: 'Test User',
-            prefillEmail: 'test@example.com',
-          );
-          setState(() {
-            _paymentUrl = null;
-          });
-          _controller?.loadHtmlString(htmlString);
+          _showError('Could not open payment link');
         }
       } else {
-        _showError('Failed to create order: ${response.statusCode}');
+        // On mobile, load in WebView
+        if (_controller != null) {
+          await _controller!.loadRequest(Uri.parse(paymentLinkUrl));
+        } else {
+          _showError('WebView not initialized');
+        }
       }
     } catch (e) {
       _showError('Error: $e');
-    } finally {
-      if (!kIsWeb) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _isLoading = false;
+        _paymentStatus = 'Error creating payment link: $e';
+      });
+    }
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  Future<String?> _createPaymentLink(String amountText) async {
+    const backendUrl = 'http://10.92.18.47:3000';
+    final response = await http.post(
+      Uri.parse('$backendUrl/api/payment-links/create'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'amount': double.parse(amountText),
+        'currency': 'INR',
+        'description': 'Test Payment',
+        'customer': {
+          'name': 'Test User',
+          'email': 'test@example.com',
+          'contact': '9875067129',
+        },
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['payment_link']?['short_url'];
+    } else {
+      throw Exception('Failed to create payment link: ${response.statusCode}');
     }
   }
+
+  // Remove all previous Razorpay order/checkout HTML logic and related methods
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 3),
+      ),
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    if (!kIsWeb) {
-      _controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setNavigationDelegate(
-          NavigationDelegate(
-            onPageStarted: (String url) {
-              setState(() {
-                _isLoading = true;
-              });
-            },
-            onPageFinished: (String url) {
-              setState(() {
-                _isLoading = false;
-              });
-            },
-          ),
-        );
-    }
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Test Payment (WebView)'),
+        title: const Text('Razorpay Payment'),
+        backgroundColor: Colors.blue,
+        elevation: 0,
       ),
       body: Column(
         children: [
-          Padding(
+          Container(
             padding: const EdgeInsets.all(16.0),
-            child: Row(
+            decoration: BoxDecoration(
+              color: Colors.blue,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
+            child: Column(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _amountController,
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Amount (INR)',
-                      border: OutlineInputBorder(),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: TextField(
+                          controller: _amountController,
+                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Amount',
+                            prefixText: '₹ ',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.all(Radius.circular(10)),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: kIsWeb
+                          ? (_isLoading ? null : _startPayment)
+                          : (_isLoading || _controller == null) ? null : _startPayment,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.blue,
+                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Pay Now', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _startPayment,
-                  child: const Text('Pay'),
+                const SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _paymentStatus,
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
           if (_isLoading) const LinearProgressIndicator(),
           Expanded(
-            child: kIsWeb
-                ? (_launchedOnWeb
-                    ? const Center(child: Text('Payment page opened in new tab.'))
-                    : const Center(child: Text('Enter an amount and tap Pay to test payment.')))
-                : (_controller == null
-                    ? const Center(child: Text('Enter an amount and tap Pay to test payment.'))
-                    : WebViewWidget(controller: _controller!)),
+            child: Container(
+              margin: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: kIsWeb
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.open_in_new, size: 64, color: Colors.blue),
+                            SizedBox(height: 16),
+                            Text(
+                              'Payment will open in a new tab',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'After completing payment, return to this page.',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      )
+                    : (_controller == null
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.hourglass_empty, size: 48, color: Colors.blue),
+                                SizedBox(height: 16),
+                                Text(
+                                  'Initializing payment view...',
+                                  style: TextStyle(fontSize: 16, color: Colors.blue),
+                                ),
+                              ],
+                            ),
+                          )
+                        : WebViewWidget(controller: _controller!)),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
-} 
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+}
