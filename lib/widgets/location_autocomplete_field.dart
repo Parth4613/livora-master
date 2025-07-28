@@ -130,15 +130,18 @@ class _LocationAutocompleteFieldState extends State<LocationAutocompleteField> {
       composing: TextRange.empty,
     );
     setState(() {}); // Force rebuild for web
+    // Add debug print to confirm value
+    print('[Autocomplete] Controller value after set: \'${widget.controller.text}\'');
     widget.onLocationSelected?.call(result);
-    
     setState(() {
       _showSuggestions = false;
       _suggestions = [];
     });
     // Delay unfocus to ensure text is visible on web
-    Future.delayed(const Duration(milliseconds: 50), () {
+    Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) _focusNode.unfocus();
+      // Extra setState to ensure UI update on web
+      if (mounted) setState(() {});
     });
     _resetSession(); // Reset session after selection
   }

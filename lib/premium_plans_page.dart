@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'services/efficient_payment_service.dart';
-import 'services/google_play_billing_service.dart';
 
 class PremiumPlansPage extends StatefulWidget {
   const PremiumPlansPage({Key? key}) : super(key: key);
@@ -87,7 +86,10 @@ class _PremiumPlansPageState extends State<PremiumPlansPage> {
   Future<void> _addPlanToUser(String plan) async {
     print('_addPlanToUser called with plan: $plan');
     final amount = premiumPrices[plan] ?? 0.0;
-    print('Amount for plan $plan: $amount');
+    print('Amount for plan $plan (rupees): $amount');
+    final amountInRupees = amount;
+    final amountInPaise = (amountInRupees * 100).round();
+    print('Amount for plan $plan (paise): $amountInPaise');
     
     if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -101,20 +103,12 @@ class _PremiumPlansPageState extends State<PremiumPlansPage> {
 
     print('Processing premium plan payment for: $plan');
     try {
-      // Use Google Play Billing for mobile, Razorpay for web
-      if (kIsWeb) {
-        await EfficientPaymentService().processPremiumPlanPayment(
-          planName: plan,
-          amount: amount,
-          context: context,
-        );
-      } else {
-        await GooglePlayBillingService().processPremiumPlanPayment(
-          planName: plan,
-          amount: amount,
-          context: context,
-        );
-      }
+      // Use Razorpay for all platforms
+      await EfficientPaymentService().processPremiumPlanPayment(
+        planName: plan,
+        amount: amountInRupees, // Always pass rupees, EfficientPaymentService will convert to paise
+        context: context,
+      );
       print('Payment processing completed');
     } catch (e) {
       print('Error in payment processing: $e');

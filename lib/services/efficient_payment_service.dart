@@ -7,7 +7,6 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../payment_success_page.dart';
-import 'google_play_billing_service.dart';
 import 'razorpay_inapp_service.dart';
 
 class EfficientPaymentService {
@@ -59,17 +58,31 @@ class EfficientPaymentService {
     }
 
     try {
+      // Use Razorpay payment link for all platforms
+      final paymentLinkUrl = await _createPaymentLinkWeb(
+        'premium_plan',
+        planName,
+        amount,
+        user.uid, // Use userId as a unique identifier for premium plan
+        user.uid,
+      );
+      if (paymentLinkUrl == null) {
+        throw Exception('Failed to get payment link URL');
+      }
       if (kIsWeb) {
-        // Web implementation - use Razorpay
-        final order = await _createOrder(planName, amount, user.uid);
-        await _processWebPayment(order, context);
+        // On web, open payment link in a new tab
+        if (await canLaunchUrl(Uri.parse(paymentLinkUrl))) {
+          await launchUrl(Uri.parse(paymentLinkUrl), mode: LaunchMode.externalApplication);
+        } else {
+          _showErrorSnackBar(context, 'Could not open payment link');
+        }
       } else {
-        // Mobile implementation - use Google Play Billing
-        await GooglePlayBillingService().processPremiumPlanPayment(
-          planName: planName,
-          amount: amount,
-          context: context,
-        );
+        // On mobile, open payment link in browser
+        if (await canLaunchUrl(Uri.parse(paymentLinkUrl))) {
+          await launchUrl(Uri.parse(paymentLinkUrl), mode: LaunchMode.externalApplication);
+        } else {
+          _showErrorSnackBar(context, 'Could not open payment link');
+        }
       }
     } catch (e) {
       print('Payment error: $e');
@@ -134,11 +147,12 @@ class EfficientPaymentService {
 
   Future<Map<String, dynamic>> _createOrder(String planName, double amount, String userId) async {
     try {
+      final int amountPaise = (amount * 100).round();
       final response = await http.post(
         Uri.parse('$_backendUrl/api/orders/create'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'amount': amount,
+          'amount': amountPaise,
           'currency': 'INR',
           'receipt': 'receipt_${DateTime.now().millisecondsSinceEpoch}',
           'notes': {
@@ -162,11 +176,12 @@ class EfficientPaymentService {
   }
 
   Future<String?> _createPaymentLinkWeb(String listingType, String planName, double amount, String listingId, String userId) async {
+    // DO NOT multiply by 100 here; backend does it
     final response = await http.post(
       Uri.parse('$_backendUrl/api/payment-links/create'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'amount': amount,
+        'amount': amount, // rupees
         'currency': 'INR',
         'description': 'Listing Payment: $planName',
         'customer': {
@@ -327,12 +342,20 @@ class EfficientPaymentService {
     try {
       final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
       final now = DateTime.now();
-      
-      // For now, we'll activate a default plan
-      // In production, get plan details from order
-      const planName = 'Precision Pro';
-      const days = 30;
-      
+      // Determine plan name and duration
+      String planName = response['planName'] ?? 'Precision Pro';
+      int days = 0;
+      switch (planName) {
+        case 'Express Hunt':
+          days = 7;
+          break;
+        case 'Prime Seeker':
+        case 'Precision Pro':
+          days = 30;
+          break;
+        default:
+          days = 30;
+      }
       final expiresAt = now.add(Duration(days: days));
       final planObj = {
         'name': planName,
@@ -344,11 +367,9 @@ class EfficientPaymentService {
       // Get existing plans and update
       final userData = await userDoc.get();
       List<Map<String, dynamic>> updatedPlans = [];
-      
       if (userData.exists && userData.data()!.containsKey('plans')) {
         updatedPlans = List<Map<String, dynamic>>.from(userData.data()!['plans']);
       }
-      
       // Remove any existing plan with same name
       updatedPlans.removeWhere((p) => p['name'] == planName);
       updatedPlans.add(planObj);
