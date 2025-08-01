@@ -100,6 +100,19 @@ class _FeaturesMapSearchPageState extends State<FeaturesMapSearchPage> {
     final roomDocs = await roomStream.first;
     for (final doc in roomDocs) {
       final data = doc.data() as Map<String, dynamic>;
+      // Filter out expired listings
+      final expiryDateRaw = data['expiryDate'];
+      DateTime? expiryDate;
+      if (expiryDateRaw is Timestamp) {
+        expiryDate = expiryDateRaw.toDate();
+      } else if (expiryDateRaw is String) {
+        try {
+          expiryDate = DateTime.parse(expiryDateRaw);
+        } catch (_) {}
+      }
+      if (expiryDate != null && expiryDate.isBefore(DateTime.now())) {
+        continue; // Skip expired
+      }
       if (data['position'] != null && data['position']['geopoint'] != null) {
         final pos = data['position']['geopoint'];
         addMarker(
@@ -124,6 +137,19 @@ class _FeaturesMapSearchPageState extends State<FeaturesMapSearchPage> {
     final hostelDocs = await hostelStream.first;
     for (final doc in hostelDocs) {
       final data = doc.data() as Map<String, dynamic>;
+      // Filter out expired listings
+      final expiryDateRaw = data['expiryDate'];
+      DateTime? expiryDate;
+      if (expiryDateRaw is Timestamp) {
+        expiryDate = expiryDateRaw.toDate();
+      } else if (expiryDateRaw is String) {
+        try {
+          expiryDate = DateTime.parse(expiryDateRaw);
+        } catch (_) {}
+      }
+      if (expiryDate != null && expiryDate.isBefore(DateTime.now())) {
+        continue; // Skip expired
+      }
       if (data['position'] != null && data['position']['geopoint'] != null) {
         final pos = data['position']['geopoint'];
         addMarker(
@@ -148,6 +174,19 @@ class _FeaturesMapSearchPageState extends State<FeaturesMapSearchPage> {
     final serviceDocs = await serviceStream.first;
     for (final doc in serviceDocs) {
       final data = doc.data() as Map<String, dynamic>;
+      // Filter out expired listings
+      final expiryDateRaw = data['expiryDate'];
+      DateTime? expiryDate;
+      if (expiryDateRaw is Timestamp) {
+        expiryDate = expiryDateRaw.toDate();
+      } else if (expiryDateRaw is String) {
+        try {
+          expiryDate = DateTime.parse(expiryDateRaw);
+        } catch (_) {}
+      }
+      if (expiryDate != null && expiryDate.isBefore(DateTime.now())) {
+        continue; // Skip expired
+      }
       if (data['position'] != null && data['position']['geopoint'] != null) {
         final pos = data['position']['geopoint'];
         addMarker(
@@ -225,7 +264,7 @@ class _FeaturesMapSearchPageState extends State<FeaturesMapSearchPage> {
               Navigator.pushNamed(
                 context,
                 '/hostelpg_details',
-                arguments: {'propertyId': item['id']},
+                arguments: {'hostelId': item['id']},
               );
             } else if (type == 'Service') {
               Navigator.pushNamed(
@@ -418,7 +457,8 @@ class _FeaturesMapSearchPageState extends State<FeaturesMapSearchPage> {
               zoom: 14,
             ),
             onMapCreated: (controller) => _mapController = controller,
-            myLocationEnabled: false, // Disable My Location layer to prevent permission errors
+            myLocationEnabled:
+                false, // Disable My Location layer to prevent permission errors
             myLocationButtonEnabled: false, // Disable My Location button
             markers: _markers,
             circles: {

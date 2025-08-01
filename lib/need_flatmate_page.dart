@@ -60,8 +60,8 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.black,
-        statusBarIconBrightness: Brightness.light, 
-        statusBarBrightness: Brightness.dark, 
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
       ),
     );
     _selectedLocation = 'All Cities';
@@ -75,7 +75,7 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     try {
       // Use cached data instead of direct Firestore query
       final loaded = await _cacheService.getFlatmatesWithCache();
-      
+
       setState(() {
         _flatmates = loaded;
         _isLoading = false;
@@ -86,9 +86,9 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load flatmates: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load flatmates: $e')));
       }
     }
   }
@@ -142,7 +142,8 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     final labelColor = isDark ? Colors.white : Colors.black;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF8FAFC),
+      backgroundColor:
+          isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF0F0F0F) : Colors.white,
         elevation: 0,
@@ -153,87 +154,6 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          // Debug button for image cleanup (remove in production)
-          if (kDebugMode)
-            IconButton(
-              icon: const Icon(Icons.cleaning_services),
-              onPressed: () async {
-                try {
-                  await CacheUtils.cleanupCorruptedFlatmateImages();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Image cleanup completed. Check console for details.'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                    // Refresh the flatmate list
-                    _fetchFlatmates();
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Cleanup failed: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              tooltip: 'Cleanup corrupted images',
-            ),
-          // Force cleanup button for testing (remove in production)
-          if (kDebugMode)
-            IconButton(
-              icon: const Icon(Icons.delete_forever),
-              onPressed: () async {
-                try {
-                  await CacheUtils.forceCleanupAllFlatmateImages();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Force cleanup completed. All images removed.'),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                    // Refresh the flatmate list
-                    _fetchFlatmates();
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Force cleanup failed: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              tooltip: 'Force cleanup all images',
-            ),
-          // Toggle button for image display (remove in production)
-          if (kDebugMode)
-            IconButton(
-              icon: Icon(_showPlaceholdersOnly ? Icons.image : Icons.person),
-              onPressed: () {
-                setState(() {
-                  _showPlaceholdersOnly = !_showPlaceholdersOnly;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(_showPlaceholdersOnly 
-                        ? 'Showing placeholders only' 
-                        : 'Attempting to load actual images'),
-                    backgroundColor: Colors.blue,
-                  ),
-                );
-              },
-              tooltip: _showPlaceholdersOnly ? 'Show actual images' : 'Show placeholders only',
-            ),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -250,11 +170,7 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                 children: [
                   _buildHeader(context, labelColor),
                   const SizedBox(height: BuddyTheme.spacingLg),
-                  _buildSearchSection(
-                    context,
-                    cardColor,
-                    labelColor,
-                  ),
+                  _buildSearchSection(context, cardColor, labelColor),
                   const SizedBox(height: BuddyTheme.spacingMd),
                   _buildSectionHeader(
                     context,
@@ -461,7 +377,9 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     Color labelColor,
   ) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white));
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
     }
     if (_filteredFlatmates.isEmpty) {
       return Center(
@@ -482,8 +400,10 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     if (kIsWeb) {
       const double cardSpacing = 20.0;
       const int crossAxisCount = 3;
-      final double gridWidth = MediaQuery.of(context).size.width - (BuddyTheme.spacingMd * 2);
-      final double cardSize = (gridWidth - (cardSpacing * (crossAxisCount - 1))) / crossAxisCount;
+      final double gridWidth =
+          MediaQuery.of(context).size.width - (BuddyTheme.spacingMd * 2);
+      final double cardSize =
+          (gridWidth - (cardSpacing * (crossAxisCount - 1))) / crossAxisCount;
       if (_filteredFlatmates.length < 3) {
         // Left-align 1 or 2 cards
         return Padding(
@@ -493,8 +413,16 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
             children: List.generate(_filteredFlatmates.length, (index) {
               final flatmate = _filteredFlatmates[index];
               return Padding(
-                padding: EdgeInsets.only(right: index < _filteredFlatmates.length - 1 ? cardSpacing : 0),
-                child: _buildFlatmateCardWeb(context, flatmate, index, cardSize),
+                padding: EdgeInsets.only(
+                  right:
+                      index < _filteredFlatmates.length - 1 ? cardSpacing : 0,
+                ),
+                child: _buildFlatmateCardWeb(
+                  context,
+                  flatmate,
+                  index,
+                  cardSize,
+                ),
               );
             }),
           ),
@@ -520,21 +448,32 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     } else {
       // Mobile layout: single column
       return Column(
-        children: _filteredFlatmates
-            .map(
-              (flatmate) => Column(
-                children: [
-                  _buildFlatmateCard(context, flatmate, cardColor, labelColor),
-                  const SizedBox(height: BuddyTheme.spacingMd),
-                ],
-              ),
-            )
-            .toList(),
+        children:
+            _filteredFlatmates
+                .map(
+                  (flatmate) => Column(
+                    children: [
+                      _buildFlatmateCard(
+                        context,
+                        flatmate,
+                        cardColor,
+                        labelColor,
+                      ),
+                      const SizedBox(height: BuddyTheme.spacingMd),
+                    ],
+                  ),
+                )
+                .toList(),
       );
     }
   }
 
-  Widget _buildFlatmateCardWeb(BuildContext context, Map<String, dynamic> flatmate, int index, double cardSize) {
+  Widget _buildFlatmateCardWeb(
+    BuildContext context,
+    Map<String, dynamic> flatmate,
+    int index,
+    double cardSize,
+  ) {
     final double cardWidth = 420.0;
     final double padding = 16.0;
     final double avatarRadius = 35.0;
@@ -548,21 +487,23 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     final double buttonFontSize = 16.0;
     final double buttonPadding = 14.0;
     final String? imageUrl = flatmate['profilePhotoUrl'] as String?;
-    
+
     // Debug logging for image URL
     print('Flatmate photo URL: $imageUrl');
     print('Flatmate data: ${flatmate.toString()}');
-    
+
     // Validate and fix the image URL
     final String? validatedImageUrl = CacheUtils.validateImageUrl(imageUrl);
     if (validatedImageUrl != imageUrl) {
       print('Image URL validated/fixed: $validatedImageUrl');
     }
-    
+
     final String name = (flatmate['name'] ?? '').toString();
     final String age = (flatmate['age'] ?? '').toString();
     final String occupation = (flatmate['occupation'] ?? '').toString();
-    final String location = (flatmate['location'] ?? flatmate['preferredLocation'] ?? '').toString();
+    final String location =
+        (flatmate['location'] ?? flatmate['preferredLocation'] ?? '')
+            .toString();
     String budget = '';
     if (flatmate['minBudget'] != null && flatmate['maxBudget'] != null) {
       budget = '₹${flatmate['minBudget']} - ₹${flatmate['maxBudget']}';
@@ -600,7 +541,10 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
-          transform: _hoveredFlatmateCardIndex == index ? (Matrix4.identity()..scale(1.04)) : Matrix4.identity(),
+          transform:
+              _hoveredFlatmateCardIndex == index
+                  ? (Matrix4.identity()..scale(1.04))
+                  : Matrix4.identity(),
           decoration: BoxDecoration(
             color: const Color(0xFF23262F),
             borderRadius: BorderRadius.circular(18),
@@ -622,76 +566,106 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                 // Header with photo and basic info
                 Row(
                   children: [
-                    validatedImageUrl != null && validatedImageUrl.isNotEmpty && !_showPlaceholdersOnly
+                    validatedImageUrl != null &&
+                            validatedImageUrl.isNotEmpty &&
+                            !_showPlaceholdersOnly
                         ? FutureBuilder<bool>(
-                            future: CacheUtils.isImageUrlAccessible(validatedImageUrl),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return Container(
-                                  width: avatarRadius * 2,
-                                  height: avatarRadius * 2,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white12,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Center(
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
+                          future: CacheUtils.isImageUrlAccessible(
+                            validatedImageUrl,
+                          ),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return Container(
+                                width: avatarRadius * 2,
+                                height: avatarRadius * 2,
+                                decoration: BoxDecoration(
+                                  color: Colors.white12,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white38,
                                       ),
                                     ),
                                   ),
-                                );
-                              }
-                              
-                              final isAccessible = snapshot.data ?? false;
-                              if (!isAccessible) {
-                                print('Image not accessible, showing placeholder');
-                                return CircleAvatar(
-                                  radius: avatarRadius,
-                                  backgroundColor: Colors.white12,
-                                  child: Icon(Icons.person_outline, color: Colors.white38, size: avatarRadius),
-                                );
-                              }
-                              
-                              return ClipOval(
-                                child: CachedNetworkImage(
-                                  imageUrl: validatedImageUrl,
-                                  width: avatarRadius * 2,
-                                  height: avatarRadius * 2,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) => Container(
-                                    width: avatarRadius * 2,
-                                    height: avatarRadius * 2,
-                                    color: Colors.white12,
-                                    child: Icon(Icons.person_outline, color: Colors.white38, size: avatarRadius),
-                                  ),
-                                  errorWidget: (context, url, error) {
-                                    print('CachedNetworkImage error for URL: $url');
-                                    print('Error: $error');
-                                    // Mark this image as inaccessible for future reference
-                                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                                      _markImageAsInaccessible(validatedImageUrl);
-                                    });
-                                    return Container(
+                                ),
+                              );
+                            }
+
+                            final isAccessible = snapshot.data ?? false;
+                            if (!isAccessible) {
+                              print(
+                                'Image not accessible, showing placeholder',
+                              );
+                              return CircleAvatar(
+                                radius: avatarRadius,
+                                backgroundColor: Colors.white12,
+                                child: Icon(
+                                  Icons.person_outline,
+                                  color: Colors.white38,
+                                  size: avatarRadius,
+                                ),
+                              );
+                            }
+
+                            return ClipOval(
+                              child: CachedNetworkImage(
+                                imageUrl: validatedImageUrl,
+                                width: avatarRadius * 2,
+                                height: avatarRadius * 2,
+                                fit: BoxFit.cover,
+                                placeholder:
+                                    (context, url) => Container(
                                       width: avatarRadius * 2,
                                       height: avatarRadius * 2,
                                       color: Colors.white12,
-                                      child: Icon(Icons.person_outline, color: Colors.white38, size: avatarRadius),
-                                    );
-                                  },
-                                ),
-                              );
-                            },
-                          )
+                                      child: Icon(
+                                        Icons.person_outline,
+                                        color: Colors.white38,
+                                        size: avatarRadius,
+                                      ),
+                                    ),
+                                errorWidget: (context, url, error) {
+                                  print(
+                                    'CachedNetworkImage error for URL: $url',
+                                  );
+                                  print('Error: $error');
+                                  // Mark this image as inaccessible for future reference
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    _markImageAsInaccessible(validatedImageUrl);
+                                  });
+                                  return Container(
+                                    width: avatarRadius * 2,
+                                    height: avatarRadius * 2,
+                                    color: Colors.white12,
+                                    child: Icon(
+                                      Icons.person_outline,
+                                      color: Colors.white38,
+                                      size: avatarRadius,
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        )
                         : CircleAvatar(
-                            radius: avatarRadius,
-                            backgroundColor: Colors.white12,
-                            child: Icon(Icons.person_outline, color: Colors.white38, size: avatarRadius),
+                          radius: avatarRadius,
+                          backgroundColor: Colors.white12,
+                          child: Icon(
+                            Icons.person_outline,
+                            color: Colors.white38,
+                            size: avatarRadius,
                           ),
+                        ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -715,7 +689,11 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.location_on, color: Colors.white.withOpacity(0.7), size: iconSize),
+                              Icon(
+                                Icons.location_on,
+                                color: Colors.white.withOpacity(0.7),
+                                size: iconSize,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 location,
@@ -741,7 +719,10 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                           color: const Color(0xFF232B3A),
                           borderRadius: BorderRadius.circular(infoBoxRadius),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -777,7 +758,10 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                           color: const Color(0xFF1E2C25),
                           borderRadius: BorderRadius.circular(infoBoxRadius),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -901,7 +885,9 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                     height: 60,
                     decoration: BoxDecoration(
                       color: Colors.white12,
-                      borderRadius: BorderRadius.circular(BuddyTheme.borderRadiusSm),
+                      borderRadius: BorderRadius.circular(
+                        BuddyTheme.borderRadiusSm,
+                      ),
                     ),
                   ),
                 ),
@@ -911,7 +897,9 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
                     height: 60,
                     decoration: BoxDecoration(
                       color: Colors.white12,
-                      borderRadius: BorderRadius.circular(BuddyTheme.borderRadiusSm),
+                      borderRadius: BorderRadius.circular(
+                        BuddyTheme.borderRadiusSm,
+                      ),
                     ),
                   ),
                 ),
@@ -971,19 +959,19 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
     final double buttonSpacing = isWeb ? 12.0 : 18.0;
     final double iconSize = isWeb ? 16.0 : 20.0;
     final double badgePadding = isWeb ? 6.0 : 8.0;
-    
+
     final Color accentColor = const Color(0xFF64B5F6);
-    
+
     // Debug logging for image URL
     final String? imageUrl = flatmate['profilePhotoUrl'] as String?;
     print('Mobile Flatmate photo URL: $imageUrl');
-    
+
     // Validate and fix the image URL
     final String? validatedImageUrl = CacheUtils.validateImageUrl(imageUrl);
     if (validatedImageUrl != imageUrl) {
       print('Mobile Image URL validated/fixed: $validatedImageUrl');
     }
-    
+
     return Container(
       decoration: BuddyTheme.cardDecoration.copyWith(color: cardColor),
       child: Padding(
@@ -996,74 +984,96 @@ class _NeedFlatmatePageState extends State<NeedFlatmatePage> {
               children: [
                 validatedImageUrl != null && validatedImageUrl.isNotEmpty
                     ? FutureBuilder<bool>(
-                        future: CacheUtils.isImageUrlAccessible(validatedImageUrl),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return Container(
-                              width: avatarRadius * 2,
-                              height: avatarRadius * 2,
-                              decoration: BoxDecoration(
-                                color: cardColor,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      future: CacheUtils.isImageUrlAccessible(
+                        validatedImageUrl,
+                      ),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return Container(
+                            width: avatarRadius * 2,
+                            height: avatarRadius * 2,
+                            decoration: BoxDecoration(
+                              color: cardColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
                                   ),
                                 ),
                               ),
-                            );
-                          }
-                          
-                          final isAccessible = snapshot.data ?? false;
-                          if (!isAccessible) {
-                            print('Mobile image not accessible, showing placeholder');
-                            return CircleAvatar(
-                              radius: avatarRadius,
-                              backgroundColor: cardColor,
-                              child: Icon(Icons.person, color: Colors.white, size: isWeb ? 24 : 28),
-                            );
-                          }
-                          
-                          return ClipOval(
-                            child: CachedNetworkImage(
-                              imageUrl: validatedImageUrl,
-                              width: avatarRadius * 2,
-                              height: avatarRadius * 2,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(
-                                width: avatarRadius * 2,
-                                height: avatarRadius * 2,
-                                color: cardColor,
-                                child: Icon(Icons.person, color: Colors.white, size: isWeb ? 24 : 28),
-                              ),
-                              errorWidget: (context, url, error) {
-                                print('Mobile CachedNetworkImage error for URL: $url');
-                                print('Error: $error');
-                                return Container(
+                            ),
+                          );
+                        }
+
+                        final isAccessible = snapshot.data ?? false;
+                        if (!isAccessible) {
+                          print(
+                            'Mobile image not accessible, showing placeholder',
+                          );
+                          return CircleAvatar(
+                            radius: avatarRadius,
+                            backgroundColor: cardColor,
+                            child: Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: isWeb ? 24 : 28,
+                            ),
+                          );
+                        }
+
+                        return ClipOval(
+                          child: CachedNetworkImage(
+                            imageUrl: validatedImageUrl,
+                            width: avatarRadius * 2,
+                            height: avatarRadius * 2,
+                            fit: BoxFit.cover,
+                            placeholder:
+                                (context, url) => Container(
                                   width: avatarRadius * 2,
                                   height: avatarRadius * 2,
                                   color: cardColor,
-                                  child: Icon(Icons.person, color: Colors.white, size: isWeb ? 24 : 28),
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      )
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: isWeb ? 24 : 28,
+                                  ),
+                                ),
+                            errorWidget: (context, url, error) {
+                              print(
+                                'Mobile CachedNetworkImage error for URL: $url',
+                              );
+                              print('Error: $error');
+                              return Container(
+                                width: avatarRadius * 2,
+                                height: avatarRadius * 2,
+                                color: cardColor,
+                                child: Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: isWeb ? 24 : 28,
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    )
                     : CircleAvatar(
-                        radius: avatarRadius,
-                        backgroundColor: cardColor,
-                        child: Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: isWeb ? 24 : 28,
-                        ),
+                      radius: avatarRadius,
+                      backgroundColor: cardColor,
+                      child: Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: isWeb ? 24 : 28,
                       ),
+                    ),
                 SizedBox(width: spacing),
                 Expanded(
                   child: Column(

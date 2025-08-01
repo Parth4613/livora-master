@@ -8,27 +8,22 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../payment_success_page.dart';
 
 class RazorpayInAppService {
-  static final RazorpayInAppService _instance = RazorpayInAppService._internal();
+  static final RazorpayInAppService _instance =
+      RazorpayInAppService._internal();
   factory RazorpayInAppService() => _instance;
   RazorpayInAppService._internal();
 
   // Razorpay configuration
   static const String _razorpayKey = 'rzp_test_O9xBxveMFHkkdp';
   static const String _razorpaySecret = '540ObIojNTJlPoQMdZsdXoyX';
-  
+
   // Your backend API URL (update this with your deployed backend URL)
   static String get _backendUrl {
     if (kIsWeb) {
       return 'http://localhost:3000'; // For web development
     } else {
-      // For Android device - try multiple URLs
-      try {
-        // First try the device-specific IP
-        return 'http://10.92.18.47:3000';
-      } catch (e) {
-        // Fallback to localhost if device IP fails
-        return 'http://localhost:3000';
-      }
+      // For Android device - use user's local IP
+      return 'http://152.58.15.6:3000';
     }
   }
   // static const String _backendUrl = 'https://your-production-backend.com'; // For production
@@ -41,8 +36,10 @@ class RazorpayInAppService {
     required BuildContext context,
   }) async {
     print('RazorpayInAppService.processListingPayment called');
-    print('Listing Type: $listingType, Plan: $planName, Amount: $amount, Listing ID: $listingId');
-    
+    print(
+      'Listing Type: $listingType, Plan: $planName, Amount: $amount, Listing ID: $listingId',
+    );
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       print('User not authenticated in RazorpayInAppService');
@@ -53,9 +50,15 @@ class RazorpayInAppService {
     try {
       print('Creating order on backend...');
       // Create order on your backend
-      final order = await _createListingOrder(listingType, planName, amount, listingId, user.uid);
+      final order = await _createListingOrder(
+        listingType,
+        planName,
+        amount,
+        listingId,
+        user.uid,
+      );
       print('Order created successfully: ${order['id']}');
-      
+
       print('Showing in-app payment webview...');
       // Show in-app payment webview
       await _showInAppPayment(order, context);
@@ -66,11 +69,17 @@ class RazorpayInAppService {
     }
   }
 
-  Future<Map<String, dynamic>> _createListingOrder(String listingType, String planName, double amount, String listingId, String userId) async {
+  Future<Map<String, dynamic>> _createListingOrder(
+    String listingType,
+    String planName,
+    double amount,
+    String listingId,
+    String userId,
+  ) async {
     print('Creating listing order...');
     print('Backend URL: $_backendUrl');
     print('Amount: $amount, Listing Type: $listingType, Plan: $planName');
-    
+
     try {
       final requestBody = {
         'amount': amount,
@@ -84,9 +93,9 @@ class RazorpayInAppService {
           'type': 'listing',
         },
       };
-      
+
       print('Request body: ${jsonEncode(requestBody)}');
-      
+
       final response = await http.post(
         Uri.parse('$_backendUrl/api/orders/create'),
         headers: {'Content-Type': 'application/json'},
@@ -101,8 +110,12 @@ class RazorpayInAppService {
         print('Order created: ${data['order']['id']}');
         return data['order'];
       } else {
-        print('Failed to create order. Status: ${response.statusCode}, Body: ${response.body}');
-        throw Exception('Failed to create listing order: ${response.statusCode}');
+        print(
+          'Failed to create order. Status: ${response.statusCode}, Body: ${response.body}',
+        );
+        throw Exception(
+          'Failed to create listing order: ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('Error creating listing order: $e');
@@ -110,9 +123,13 @@ class RazorpayInAppService {
     }
   }
 
-  Future<void> _showInAppPayment(Map<String, dynamic> order, BuildContext context) async {
+  Future<void> _showInAppPayment(
+    Map<String, dynamic> order,
+    BuildContext context,
+  ) async {
     // Build Razorpay checkout URL
-    final paymentUrl = 'https://checkout.razorpay.com/v1/checkout.html?' +
+    final paymentUrl =
+        'https://checkout.razorpay.com/v1/checkout.html?' +
         'key=${_razorpayKey}' +
         '&amount=${order['amount']}' +
         '&currency=${order['currency']}' +
@@ -129,14 +146,15 @@ class RazorpayInAppService {
     if (context.mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => InAppPaymentPage(
-            paymentUrl: paymentUrl,
-            orderId: order['id'],
-            listingType: order['notes']['listingType'],
-            planName: order['notes']['planName'],
-            listingId: order['notes']['listingId'],
-            amount: order['notes']['amount'] ?? 0.0,
-          ),
+          builder:
+              (context) => InAppPaymentPage(
+                paymentUrl: paymentUrl,
+                orderId: order['id'],
+                listingType: order['notes']['listingType'],
+                planName: order['notes']['planName'],
+                listingId: order['notes']['listingId'],
+                amount: order['notes']['amount'] ?? 0.0,
+              ),
         ),
       );
     }
@@ -148,9 +166,7 @@ class RazorpayInAppService {
         content: Text(message),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -186,43 +202,46 @@ class _InAppPaymentPageState extends State<InAppPaymentPage> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (String url) {
-            setState(() {
-              _isLoading = true;
-            });
-          },
-          onPageFinished: (String url) {
-            setState(() {
-              _isLoading = false;
-            });
-            
-            // Check for payment completion
-            if (url.contains('payment-success') || url.contains('razorpay_payment_id')) {
-              _handlePaymentSuccess(url);
-            } else if (url.contains('payment-cancel') || url.contains('payment_failed')) {
-              _handlePaymentFailure();
-            }
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            // Handle navigation requests
-            if (request.url.contains('payment-success') || 
-                request.url.contains('razorpay_payment_id')) {
-              _handlePaymentSuccess(request.url);
-              return NavigationDecision.prevent;
-            } else if (request.url.contains('payment-cancel') || 
-                       request.url.contains('payment_failed')) {
-              _handlePaymentFailure();
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(widget.paymentUrl));
+    _controller =
+        WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..setNavigationDelegate(
+            NavigationDelegate(
+              onPageStarted: (String url) {
+                setState(() {
+                  _isLoading = true;
+                });
+              },
+              onPageFinished: (String url) {
+                setState(() {
+                  _isLoading = false;
+                });
+
+                // Check for payment completion
+                if (url.contains('payment-success') ||
+                    url.contains('razorpay_payment_id')) {
+                  _handlePaymentSuccess(url);
+                } else if (url.contains('payment-cancel') ||
+                    url.contains('payment_failed')) {
+                  _handlePaymentFailure();
+                }
+              },
+              onNavigationRequest: (NavigationRequest request) {
+                // Handle navigation requests
+                if (request.url.contains('payment-success') ||
+                    request.url.contains('razorpay_payment_id')) {
+                  _handlePaymentSuccess(request.url);
+                  return NavigationDecision.prevent;
+                } else if (request.url.contains('payment-cancel') ||
+                    request.url.contains('payment_failed')) {
+                  _handlePaymentFailure();
+                  return NavigationDecision.prevent;
+                }
+                return NavigationDecision.navigate;
+              },
+            ),
+          )
+          ..loadRequest(Uri.parse(widget.paymentUrl));
   }
 
   void _handlePaymentSuccess(String url) async {
@@ -232,9 +251,14 @@ class _InAppPaymentPageState extends State<InAppPaymentPage> {
     try {
       // Extract payment details from URL parameters
       final uri = Uri.parse(url);
-      final paymentId = uri.queryParameters['razorpay_payment_id'] ?? 'pay_${DateTime.now().millisecondsSinceEpoch}';
-      final orderId = uri.queryParameters['razorpay_order_id'] ?? widget.orderId;
-      final signature = uri.queryParameters['razorpay_signature'] ?? 'signature_${DateTime.now().millisecondsSinceEpoch}';
+      final paymentId =
+          uri.queryParameters['razorpay_payment_id'] ??
+          'pay_${DateTime.now().millisecondsSinceEpoch}';
+      final orderId =
+          uri.queryParameters['razorpay_order_id'] ?? widget.orderId;
+      final signature =
+          uri.queryParameters['razorpay_signature'] ??
+          'signature_${DateTime.now().millisecondsSinceEpoch}';
 
       // Verify payment with backend
       final verifyResponse = await http.post(
@@ -258,22 +282,30 @@ class _InAppPaymentPageState extends State<InAppPaymentPage> {
           if (mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
-                builder: (context) => PaymentSuccessPage(
-                  title: 'Payment Successful!',
-                  message: 'Your listing is now active and visible to users.',
-                  orderId: orderId,
-                  onContinue: () {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  },
-                ),
+                builder:
+                    (context) => PaymentSuccessPage(
+                      title: 'Payment Successful!',
+                      message:
+                          'Your listing is now active and visible to users.',
+                      orderId: orderId,
+                      onContinue: () {
+                        Navigator.of(
+                          context,
+                        ).popUntil((route) => route.isFirst);
+                      },
+                    ),
               ),
             );
           }
         } else {
-          throw Exception('Payment verification failed: ${verifyData['error']}');
+          throw Exception(
+            'Payment verification failed: ${verifyData['error']}',
+          );
         }
       } else {
-        throw Exception('Payment verification failed: ${verifyResponse.statusCode}');
+        throw Exception(
+          'Payment verification failed: ${verifyResponse.statusCode}',
+        );
       }
     } catch (e) {
       print('Error handling payment success: $e');
@@ -298,17 +330,17 @@ class _InAppPaymentPageState extends State<InAppPaymentPage> {
     try {
       // Update the listing to make it visible
       final collectionName = _getCollectionName(widget.listingType);
-      
+
       await FirebaseFirestore.instance
           .collection(collectionName)
           .doc(widget.listingId)
           .update({
-        'visibility': true,
-        'paymentStatus': 'completed',
-        'paymentId': paymentId,
-        'planName': widget.planName,
-        'activatedAt': FieldValue.serverTimestamp(),
-      });
+            'visibility': true,
+            'paymentStatus': 'completed',
+            'paymentId': paymentId,
+            'planName': widget.planName,
+            'activatedAt': FieldValue.serverTimestamp(),
+          });
     } catch (e) {
       print('Error activating listing: $e');
       throw e;
@@ -336,17 +368,17 @@ class _InAppPaymentPageState extends State<InAppPaymentPage> {
         content: Text(message),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  Future<void> _savePaymentRecord(String paymentId, String orderId, String signature) async {
-    await FirebaseFirestore.instance
-        .collection('payments')
-        .add({
+  Future<void> _savePaymentRecord(
+    String paymentId,
+    String orderId,
+    String signature,
+  ) async {
+    await FirebaseFirestore.instance.collection('payments').add({
       'userId': FirebaseAuth.instance.currentUser?.uid,
       'paymentId': paymentId,
       'orderId': orderId,
@@ -395,4 +427,4 @@ class _InAppPaymentPageState extends State<InAppPaymentPage> {
       ),
     );
   }
-} 
+}

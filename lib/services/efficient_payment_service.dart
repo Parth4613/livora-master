@@ -10,23 +10,22 @@ import '../payment_success_page.dart';
 import 'razorpay_inapp_service.dart';
 
 class EfficientPaymentService {
-  static final EfficientPaymentService _instance = EfficientPaymentService._internal();
+  static final EfficientPaymentService _instance =
+      EfficientPaymentService._internal();
   factory EfficientPaymentService() => _instance;
   EfficientPaymentService._internal();
 
   // Razorpay configuration
   static const String _razorpayKey = 'rzp_test_O9xBxveMFHkkdp';
   static const String _razorpaySecret = '540ObIojNTJlPoQMdZsdXoyX';
-  
+
   // Your backend API URL (update this with your deployed backend URL)
   static String get _backendUrl {
     if (kIsWeb) {
       return 'http://localhost:3000'; // For web development
     } else {
-      // For Android device - try multiple URLs
-      // Uncomment the line below for testing with localhost
-      return 'http://localhost:3000'; // For testing - use this if IP address fails
-      // return 'http://10.92.18.47:3000'; // For real Android device
+      // For Android device - use user's local IP
+      return 'http://152.58.15.6:3000';
     }
   }
   // static const String _backendUrl = 'https://your-production-backend.com'; // For production
@@ -34,11 +33,13 @@ class EfficientPaymentService {
   // Test backend connectivity
   static Future<bool> testBackendConnectivity() async {
     try {
-      final response = await http.get(
-        Uri.parse('$_backendUrl/health'),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 5));
-      
+      final response = await http
+          .get(
+            Uri.parse('$_backendUrl/health'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 5));
+
       return response.statusCode == 200;
     } catch (e) {
       print('Backend connectivity test failed: $e');
@@ -72,14 +73,20 @@ class EfficientPaymentService {
       if (kIsWeb) {
         // On web, open payment link in a new tab
         if (await canLaunchUrl(Uri.parse(paymentLinkUrl))) {
-          await launchUrl(Uri.parse(paymentLinkUrl), mode: LaunchMode.externalApplication);
+          await launchUrl(
+            Uri.parse(paymentLinkUrl),
+            mode: LaunchMode.externalApplication,
+          );
         } else {
           _showErrorSnackBar(context, 'Could not open payment link');
         }
       } else {
         // On mobile, open payment link in browser
         if (await canLaunchUrl(Uri.parse(paymentLinkUrl))) {
-          await launchUrl(Uri.parse(paymentLinkUrl), mode: LaunchMode.externalApplication);
+          await launchUrl(
+            Uri.parse(paymentLinkUrl),
+            mode: LaunchMode.externalApplication,
+          );
         } else {
           _showErrorSnackBar(context, 'Could not open payment link');
         }
@@ -98,8 +105,10 @@ class EfficientPaymentService {
     required BuildContext context,
   }) async {
     print('EfficientPaymentService.processListingPayment called');
-    print('Listing Type: $listingType, Plan: $planName, Amount: $amount, Listing ID: $listingId');
-    
+    print(
+      'Listing Type: $listingType, Plan: $planName, Amount: $amount, Listing ID: $listingId',
+    );
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       print('User not authenticated');
@@ -110,7 +119,10 @@ class EfficientPaymentService {
     // Test backend connectivity first
     final isBackendConnected = await testBackendConnectivity();
     if (!isBackendConnected) {
-      _showErrorSnackBar(context, 'Unable to connect to payment server. Please check your internet connection and try again.');
+      _showErrorSnackBar(
+        context,
+        'Unable to connect to payment server. Please check your internet connection and try again.',
+      );
       return;
     }
 
@@ -118,12 +130,21 @@ class EfficientPaymentService {
       if (kIsWeb) {
         print('Processing web payment with Razorpay Payment Link');
         // Create payment link on backend
-        final paymentLinkUrl = await _createPaymentLinkWeb(listingType, planName, amount, listingId, user.uid);
+        final paymentLinkUrl = await _createPaymentLinkWeb(
+          listingType,
+          planName,
+          amount,
+          listingId,
+          user.uid,
+        );
         if (paymentLinkUrl == null) {
           throw Exception('Failed to get payment link URL');
         }
         if (await canLaunchUrl(Uri.parse(paymentLinkUrl))) {
-          await launchUrl(Uri.parse(paymentLinkUrl), mode: LaunchMode.externalApplication);
+          await launchUrl(
+            Uri.parse(paymentLinkUrl),
+            mode: LaunchMode.externalApplication,
+          );
         } else {
           _showErrorSnackBar(context, 'Could not open payment link');
         }
@@ -145,7 +166,11 @@ class EfficientPaymentService {
     }
   }
 
-  Future<Map<String, dynamic>> _createOrder(String planName, double amount, String userId) async {
+  Future<Map<String, dynamic>> _createOrder(
+    String planName,
+    double amount,
+    String userId,
+  ) async {
     try {
       final int amountPaise = (amount * 100).round();
       final response = await http.post(
@@ -175,7 +200,13 @@ class EfficientPaymentService {
     }
   }
 
-  Future<String?> _createPaymentLinkWeb(String listingType, String planName, double amount, String listingId, String userId) async {
+  Future<String?> _createPaymentLinkWeb(
+    String listingType,
+    String planName,
+    double amount,
+    String listingId,
+    String userId,
+  ) async {
     // DO NOT multiply by 100 here; backend does it
     final response = await http.post(
       Uri.parse('$_backendUrl/api/payment-links/create'),
@@ -186,7 +217,8 @@ class EfficientPaymentService {
         'description': 'Listing Payment: $planName',
         'customer': {
           'name': FirebaseAuth.instance.currentUser?.displayName ?? 'User',
-          'email': FirebaseAuth.instance.currentUser?.email ?? 'test@example.com',
+          'email':
+              FirebaseAuth.instance.currentUser?.email ?? 'test@example.com',
           'contact': '9875067129',
         },
         'notes': {
@@ -207,9 +239,13 @@ class EfficientPaymentService {
     }
   }
 
-  Future<void> _processWebPayment(Map<String, dynamic> order, BuildContext context) async {
+  Future<void> _processWebPayment(
+    Map<String, dynamic> order,
+    BuildContext context,
+  ) async {
     // Web implementation - open payment URL in new tab
-    final paymentUrl = 'https://checkout.razorpay.com/v1/checkout.html?' +
+    final paymentUrl =
+        'https://checkout.razorpay.com/v1/checkout.html?' +
         'key=${_razorpayKey}' +
         '&amount=${order['amount']}' +
         '&currency=${order['currency']}' +
@@ -223,26 +259,29 @@ class EfficientPaymentService {
     final uri = Uri.parse(paymentUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-      
+
       // Show a dialog to guide user back to app
       if (context.mounted) {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: Text('Payment in Progress'),
-            content: Text('Please complete the payment in your browser and return to the app.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  // Check payment status
-                  _checkPaymentStatus(order['id'], context);
-                },
-                child: Text('I\'ve Completed Payment'),
+          builder:
+              (context) => AlertDialog(
+                title: Text('Payment in Progress'),
+                content: Text(
+                  'Please complete the payment in your browser and return to the app.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      // Check payment status
+                      _checkPaymentStatus(order['id'], context);
+                    },
+                    child: Text('I\'ve Completed Payment'),
+                  ),
+                ],
               ),
-            ],
-          ),
         );
       }
     } else {
@@ -250,9 +289,13 @@ class EfficientPaymentService {
     }
   }
 
-  Future<void> _processMobilePayment(Map<String, dynamic> order, BuildContext context) async {
+  Future<void> _processMobilePayment(
+    Map<String, dynamic> order,
+    BuildContext context,
+  ) async {
     // Mobile implementation - open payment URL in browser
-    final paymentUrl = 'https://checkout.razorpay.com/v1/checkout.html?' +
+    final paymentUrl =
+        'https://checkout.razorpay.com/v1/checkout.html?' +
         'key=${_razorpayKey}' +
         '&amount=${order['amount']}' +
         '&currency=${order['currency']}' +
@@ -266,26 +309,29 @@ class EfficientPaymentService {
     final uri = Uri.parse(paymentUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-      
+
       // Show a dialog to guide user back to app
       if (context.mounted) {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: Text('Payment in Progress'),
-            content: Text('Please complete the payment in your browser and return to the app.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  // Check payment status
-                  _checkPaymentStatus(order['id'], context);
-                },
-                child: Text('I\'ve Completed Payment'),
+          builder:
+              (context) => AlertDialog(
+                title: Text('Payment in Progress'),
+                content: Text(
+                  'Please complete the payment in your browser and return to the app.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      // Check payment status
+                      _checkPaymentStatus(order['id'], context);
+                    },
+                    child: Text('I\'ve Completed Payment'),
+                  ),
+                ],
               ),
-            ],
-          ),
         );
       }
     } else {
@@ -293,7 +339,10 @@ class EfficientPaymentService {
     }
   }
 
-  Future<void> _handlePaymentSuccess(Map<String, dynamic> response, BuildContext context) async {
+  Future<void> _handlePaymentSuccess(
+    Map<String, dynamic> response,
+    BuildContext context,
+  ) async {
     try {
       // Verify payment signature (in production, do this on your backend)
       final paymentId = response['razorpay_payment_id'];
@@ -301,9 +350,7 @@ class EfficientPaymentService {
       final signature = response['razorpay_signature'];
 
       // Save payment record
-      await FirebaseFirestore.instance
-          .collection('payments')
-          .add({
+      await FirebaseFirestore.instance.collection('payments').add({
         'userId': FirebaseAuth.instance.currentUser?.uid,
         'paymentId': paymentId,
         'orderId': orderId,
@@ -322,10 +369,13 @@ class EfficientPaymentService {
     }
   }
 
-  Future<void> _processPaymentSuccess(Map<String, dynamic> response, BuildContext context) async {
+  Future<void> _processPaymentSuccess(
+    Map<String, dynamic> response,
+    BuildContext context,
+  ) async {
     // Get order details to determine payment type
     final orderId = response['razorpay_order_id'];
-    
+
     // In production, fetch order details from your backend
     // For now, we'll process based on the order ID pattern
     if (orderId.contains('premium')) {
@@ -335,12 +385,17 @@ class EfficientPaymentService {
     }
   }
 
-  Future<void> _activatePremiumPlan(Map<String, dynamic> response, BuildContext context) async {
+  Future<void> _activatePremiumPlan(
+    Map<String, dynamic> response,
+    BuildContext context,
+  ) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     try {
-      final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      final userDoc = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
       final now = DateTime.now();
       // Determine plan name and duration
       String planName = response['planName'] ?? 'Precision Pro';
@@ -368,27 +423,29 @@ class EfficientPaymentService {
       final userData = await userDoc.get();
       List<Map<String, dynamic>> updatedPlans = [];
       if (userData.exists && userData.data()!.containsKey('plans')) {
-        updatedPlans = List<Map<String, dynamic>>.from(userData.data()!['plans']);
+        updatedPlans = List<Map<String, dynamic>>.from(
+          userData.data()!['plans'],
+        );
       }
       // Remove any existing plan with same name
       updatedPlans.removeWhere((p) => p['name'] == planName);
       updatedPlans.add(planObj);
 
-      await userDoc.set({
-        'plans': updatedPlans
-      }, SetOptions(merge: true));
+      await userDoc.set({'plans': updatedPlans}, SetOptions(merge: true));
 
       // Navigate to success page
       if (context.mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => PaymentSuccessPage(
-              title: 'Premium Plan Activated!',
-              message: 'Your premium plan is now active. Enjoy enhanced features!',
-              onContinue: () {
-                Navigator.of(context).pop();
-              },
-            ),
+            builder:
+                (context) => PaymentSuccessPage(
+                  title: 'Premium Plan Activated!',
+                  message:
+                      'Your premium plan is now active. Enjoy enhanced features!',
+                  onContinue: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
           ),
         );
       }
@@ -398,11 +455,14 @@ class EfficientPaymentService {
     }
   }
 
-  Future<void> _activateListing(Map<String, dynamic> response, BuildContext context) async {
+  Future<void> _activateListing(
+    Map<String, dynamic> response,
+    BuildContext context,
+  ) async {
     try {
       final paymentId = response['razorpay_payment_id'];
       final orderId = response['razorpay_order_id'];
-      
+
       // Get order details from backend to determine listing type and ID
       final orderResponse = await http.get(
         Uri.parse('$_backendUrl/api/orders/$orderId'),
@@ -419,24 +479,22 @@ class EfficientPaymentService {
         if (listingId.isNotEmpty) {
           // Update the listing to make it visible
           final collectionName = _getCollectionName(listingType);
-          
+
           await FirebaseFirestore.instance
               .collection(collectionName)
               .doc(listingId)
               .update({
-            'visibility': true,
-            'paymentStatus': 'completed',
-            'paymentId': paymentId,
-            'orderId': orderId,
-            'planName': planName,
-            'activatedAt': FieldValue.serverTimestamp(),
-            'paymentCompletedAt': FieldValue.serverTimestamp(),
-          });
+                'visibility': true,
+                'paymentStatus': 'completed',
+                'paymentId': paymentId,
+                'orderId': orderId,
+                'planName': planName,
+                'activatedAt': FieldValue.serverTimestamp(),
+                'paymentCompletedAt': FieldValue.serverTimestamp(),
+              });
 
           // Save detailed payment record
-          await FirebaseFirestore.instance
-              .collection('payments')
-              .add({
+          await FirebaseFirestore.instance.collection('payments').add({
             'userId': FirebaseAuth.instance.currentUser?.uid,
             'paymentId': paymentId,
             'orderId': orderId,
@@ -455,14 +513,18 @@ class EfficientPaymentService {
           if (context.mounted) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
-                builder: (context) => PaymentSuccessPage(
-                  title: 'Payment Successful!',
-                  message: 'Your listing is now active and visible to users.',
-                  orderId: orderId,
-                  onContinue: () {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  },
-                ),
+                builder:
+                    (context) => PaymentSuccessPage(
+                      title: 'Payment Successful!',
+                      message:
+                          'Your listing is now active and visible to users.',
+                      orderId: orderId,
+                      onContinue: () {
+                        Navigator.of(
+                          context,
+                        ).popUntil((route) => route.isFirst);
+                      },
+                    ),
               ),
             );
           }
@@ -498,15 +560,17 @@ class EfficientPaymentService {
       // In a real implementation, you would get payment details from the payment response
       // For now, we'll simulate the verification with mock data
       // In production, this should be called with actual payment response data
-      
+
       // Simulate payment verification
       final response = await http.post(
         Uri.parse('$_backendUrl/api/payments/verify'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'razorpay_order_id': orderId,
-          'razorpay_payment_id': 'pay_${DateTime.now().millisecondsSinceEpoch}', // This should come from payment response
-          'razorpay_signature': 'signature_${DateTime.now().millisecondsSinceEpoch}', // This should come from payment response
+          'razorpay_payment_id':
+              'pay_${DateTime.now().millisecondsSinceEpoch}', // This should come from payment response
+          'razorpay_signature':
+              'signature_${DateTime.now().millisecondsSinceEpoch}', // This should come from payment response
         }),
       );
 
@@ -515,16 +579,24 @@ class EfficientPaymentService {
         if (data['success']) {
           // Payment verified successfully - simulate success response
           await _handlePaymentSuccess({
-            'razorpay_payment_id': data['payment_id'] ?? 'pay_${DateTime.now().millisecondsSinceEpoch}',
+            'razorpay_payment_id':
+                data['payment_id'] ??
+                'pay_${DateTime.now().millisecondsSinceEpoch}',
             'razorpay_order_id': orderId,
             'razorpay_signature': 'verified_signature',
             'amount': 9900, // This should come from actual payment
           }, context);
         } else {
-          _showErrorSnackBar(context, 'Payment verification failed: ${data['error']}');
+          _showErrorSnackBar(
+            context,
+            'Payment verification failed: ${data['error']}',
+          );
         }
       } else {
-        _showErrorSnackBar(context, 'Payment verification failed: ${response.statusCode}');
+        _showErrorSnackBar(
+          context,
+          'Payment verification failed: ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('Error checking payment status: $e');
@@ -560,7 +632,8 @@ class EfficientPaymentService {
         final listingType = notes['listingType'] ?? '';
         final planName = notes['planName'] ?? '';
         final listingId = notes['listingId'] ?? '';
-        final amount = (orderDetails['amount'] ?? 0) / 100; // Convert from paise
+        final amount =
+            (orderDetails['amount'] ?? 0) / 100; // Convert from paise
 
         await processListingPayment(
           listingType: listingType,
@@ -583,10 +656,8 @@ class EfficientPaymentService {
         content: Text(message),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
-} 
+}

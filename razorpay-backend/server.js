@@ -19,7 +19,7 @@ const razorpay = new Razorpay({
 app.use(helmet());
 
 // CORS configuration
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://152.58.15.6:3000'];
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -278,4 +278,4 @@ app.listen(PORT, () => {
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
-module.exports = app; 
+module.exports = app;

@@ -1,166 +1,101 @@
-# Firebase Backend Setup & API Guide for Livora
+# Firebase Cloud Functions
 
-This guide explains how to set up and use the Firebase backend for the Livora project, with a focus on integrating with a React.js web app.
+This directory contains Firebase Cloud Functions for the Livora application.
 
----
+## Available Functions
 
-## 1. Firebase Project Configuration
+### 1. sendChatNotification
+- **Type**: Callable Function
+- **Purpose**: Sends push notifications for chat messages
+- **Trigger**: Called from client app when sending chat messages
+- **Parameters**: receiverId, senderId, senderName, message, chatRoomId
 
-**Project ID:** `application-livora`
+### 2. testNotification
+- **Type**: HTTP Function
+- **Purpose**: Test function to manually send notifications
+- **Endpoint**: POST request with receiverId and message
 
-### Web App Config (for React)
-Use these values in your React app's Firebase initialization:
-```js
-const firebaseConfig = {
-  apiKey: 'AIzaSyAN9R-zNvN8qZ2SO7y4rLu5kwL1BRL_ehU',
-  authDomain: 'application-livora.firebaseapp.com',
-  projectId: 'application-livora',
-  storageBucket: 'application-livora.firebasestorage.app',
-  messagingSenderId: '796925603688',
-  appId: '1:796925603688:web:126de4bf7094f5d80fb0dd',
-};
+### 3. deleteOldChatMessages ⭐ NEW
+- **Type**: Scheduled Function
+- **Purpose**: Automatically deletes chat messages older than 7 days from Realtime Database
+- **Schedule**: Every day at 12:15 AM UTC
+- **Database**: Realtime Database (chatRooms collection)
+- **Batch Processing**: Yes, processes messages in batches for efficiency
+
+### 4. deleteExpiredListings ⭐ NEW
+- **Type**: Scheduled Function
+- **Purpose**: Automatically deletes listings that expired more than 24 hours ago
+- **Schedule**: Every hour at minute 0
+- **Database**: Firestore (listings collection)
+- **Batch Processing**: Yes, processes deletions in batches of 500
+
+## Database Structure Requirements
+
+### For Chat Messages (Realtime Database)
+```
+chatRooms/
+  {roomId}/
+    messages/
+      {messageId}/
+        timestamp: number (milliseconds since epoch)
+        message: string
+        senderId: string
+        // ... other message fields
 ```
 
----
-
-## 2. Firebase Services Used
-- **Authentication** (Email/Password, Google, etc.)
-- **Firestore** (User data, chat, notification requests)
-- **Realtime Database** (User FCM tokens, legacy data)
-- **Cloud Functions** (Notifications, backend logic)
-- **Cloud Messaging (FCM)** (Push notifications)
-
----
-
-## 3. Firestore Data Structure
-
-### Users
+### For Listings (Firestore)
 ```
-/users/{userId}/
-  fcmToken: string
-  lastTokenUpdate: timestamp
-  ...other user data
+listings/
+  {listingId}/
+    expirationDate: timestamp
+    // ... other listing fields
 ```
 
-### Notification Requests
-```
-/notification_requests/{requestId}/
-  type: 'chat_message' | ...
-  receiverId: string
-  senderId: string
-  senderName: string
-  message: string
-  chatRoomId: string
-  status: 'pending' | 'sent' | 'error'
-  sentAt: timestamp
-  fcmResponse: string
-  error: string
-  errorAt: timestamp
-```
+## Deployment
 
----
-
-## 4. Cloud Functions (APIs)
-
-### 4.1. Send Chat Notification (Triggered by Firestore)
-- **Trigger:** New document in `/notification_requests/`
-- **Action:** Sends FCM push notification to the receiver's device/web.
-- **No direct REST endpoint.**
-
-### 4.2. Test Notification (REST API)
-- **Endpoint:** `POST https://<your-region>-<your-project-id>.cloudfunctions.net/testNotification`
-- **Body:**
-  ```json
-  {
-    "receiverId": "<userId>",
-    "message": "Hello from web!"
-  }
-  ```
-- **Response:**
-  - `{ success: true, messageId, message }` on success
-  - `{ error }` on failure
-
-- **CORS:** Enabled for all origins.
-
----
-
-## 5. FCM Token Handling
-- FCM tokens are generated on client (mobile/web) and saved to:
-  - Firestore: `/users/{userId}/fcmToken`
-  - Realtime DB: `/users/{userId}/fcmToken`
-- Tokens are refreshed and updated automatically.
-
----
-
-## 6. Security Rules (Firestore)
-```js
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /notification_requests/{document} {
-      allow write: if request.auth != null;
-    }
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
----
-
-## 7. How to Integrate with React.js Web App
-
-### a. Install Firebase SDK
+1. Install dependencies:
 ```bash
-npm install firebase
+npm install
 ```
 
-### b. Initialize Firebase
-```js
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
-
-const firebaseConfig = { /* see above */ };
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const messaging = getMessaging(app);
+2. Deploy all functions:
+```bash
+npm run deploy
 ```
 
-### c. Save FCM Token to Firestore
-```js
-import { doc, setDoc } from 'firebase/firestore';
-
-async function saveFcmToken(userId, token) {
-  await setDoc(doc(db, 'users', userId), { fcmToken: token }, { merge: true });
-}
+3. Deploy specific function:
+```bash
+firebase deploy --only functions:deleteOldChatMessages
+firebase deploy --only functions:deleteExpiredListings
 ```
 
-### d. Call Cloud Function (Test Notification)
-```js
-async function sendTestNotification(receiverId, message) {
-  const res = await fetch('https://<your-region>-<your-project-id>.cloudfunctions.net/testNotification', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ receiverId, message })
-  });
-  return res.json();
-}
+## Monitoring
+
+Monitor function execution in Firebase Console:
+- Go to Functions > Logs
+- Filter by function name to see execution logs
+- Check for any errors or performance issues
+
+## Cost Optimization
+
+- Both scheduled functions use `maxInstances: 1` to prevent multiple concurrent executions
+- Batch processing reduces database operations
+- Functions are designed to handle large datasets efficiently
+
+## Testing
+
+Test the scheduled functions manually:
+```bash
+# Test chat message cleanup
+firebase functions:shell
+deleteOldChatMessages()
+
+# Test expired listings cleanup
+deleteExpiredListings()
 ```
 
----
+## Troubleshooting
 
-## 8. Troubleshooting
-- Ensure Cloud Functions are deployed: `firebase deploy --only functions`
-- Check Firestore for FCM tokens and notification requests
-- Use Firebase Console for logs and debugging
-
----
-
-## 9. References
-- [FCM Token Guide](../FCM_TOKEN_GUIDE.md)
-- [Firebase Functions Docs](https://firebase.google.com/docs/functions)
-- [Firebase Web Setup](https://firebase.google.com/docs/web/setup) 
+1. **Function not running**: Check Firebase Console > Functions > Logs for errors
+2. **Database permission issues**: Ensure service account has proper read/write permissions
+3. **Memory/timeout issues**: Monitor function execution time and memory usage in logs 

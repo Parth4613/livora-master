@@ -236,9 +236,9 @@ app.use('*', (req, res) => {
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Razorpay Backend Server running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔗 API Base URL: http://localhost:${PORT}/api`);
+  console.log(`📊 Health check: http://152.58.15.6:${PORT}/health`);
+  console.log(`🔗 API Base URL: http://152.58.15.6:${PORT}/api`);
   console.log(`📱 Device access: http://10.92.18.47:${PORT}/api`);
 });
 
-module.exports = app; 
+module.exports = app;

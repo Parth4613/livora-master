@@ -45,7 +45,7 @@ PORT=3000
 NODE_ENV=development
 
 # CORS Configuration
-ALLOWED_ORIGINS=http://localhost:3000,https://your-app-domain.com
+ALLOWED_ORIGINS=http://152.58.15.6:3000,https://your-app-domain.com
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
@@ -71,7 +71,7 @@ npm run dev
 npm start
 ```
 
-The server will start on `http://localhost:3000`
+The server will start on `http://152.58.15.6:3000`
 
 ## API Endpoints
 
@@ -126,7 +126,7 @@ Update your `efficient_payment_service.dart` to use this backend:
 // Replace the mock order creation with real API call
 Future<Map<String, dynamic>> _createOrder(String planName, double amount, String userId) async {
   final response = await http.post(
-    Uri.parse('http://localhost:3000/api/orders/create'),
+    Uri.parse('http://152.58.15.6:3000/api/orders/create'),
     headers: {'Content-Type': 'application/json'},
     body: jsonEncode({
       'amount': amount,
@@ -204,15 +204,15 @@ RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
 
 ```bash
 # Health check
-curl http://localhost:3000/health
+curl http://152.58.15.6:3000/health
 
 # Create order
-curl -X POST http://localhost:3000/api/orders/create \
+curl -X POST http://152.58.15.6:3000/api/orders/create \
   -H "Content-Type: application/json" \
   -d '{"amount": 1000, "receipt": "test_123"}'
 
 # Verify payment (use actual payment details from Razorpay)
-curl -X POST http://localhost:3000/api/payments/verify \
+curl -X POST http://152.58.15.6:3000/api/payments/verify \
   -H "Content-Type: application/json" \
   -d '{"razorpay_order_id": "order_123", "razorpay_payment_id": "pay_123", "razorpay_signature": "signature_123"}'
 ```
@@ -240,4 +240,4 @@ docker logs container_name
 
 - [Razorpay Documentation](https://razorpay.com/docs/)
 - [Express.js Documentation](https://expressjs.com/)
-- [Node.js Documentation](https://nodejs.org/) 
+- [Node.js Documentation](https://nodejs.org/)

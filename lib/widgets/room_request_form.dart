@@ -35,7 +35,8 @@ class _RoomRequestFormState extends State<RoomRequestForm>
   bool _isUploading = false;
   bool _isNavigating = false; // Add this flag to prevent rapid navigation
   DateTime _lastNavigationTime = DateTime.now();
-  dynamic _profileImage; // Changed from File? to dynamic to support both File and XFile
+  dynamic
+  _profileImage; // Changed from File? to dynamic to support both File and XFile
 
   int _currentStep = 0;
   final int _totalSteps =
@@ -208,7 +209,9 @@ class _RoomRequestFormState extends State<RoomRequestForm>
           return false;
         }
         if (maxBudget < minBudget) {
-          _showValidationError('Maximum budget cannot be less than minimum budget');
+          _showValidationError(
+            'Maximum budget cannot be less than minimum budget',
+          );
           return false;
         }
         break;
@@ -256,11 +259,13 @@ class _RoomRequestFormState extends State<RoomRequestForm>
       print('No profile image selected for upload');
       return null;
     }
-    
+
     setState(() => _isUploading = true);
     try {
       print('Uploading profile image: ${_profileImage!.path}');
-      final url = await FirebaseStorageService.uploadImage(_profileImage!.path);
+      final url = await FirebaseStorageService.uploadImage(
+        kIsWeb ? _profileImage : _profileImage!.path,
+      );
       print('Profile image uploaded successfully: $url');
       return url;
     } catch (e) {
@@ -282,15 +287,16 @@ class _RoomRequestFormState extends State<RoomRequestForm>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        content: Row(
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(width: 16),
-            const Text('Creating request and processing payment...'),
-          ],
-        ),
-      ),
+      builder:
+          (context) => AlertDialog(
+            content: Row(
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 16),
+                const Text('Creating request and processing payment...'),
+              ],
+            ),
+          ),
     );
 
     try {
@@ -345,7 +351,9 @@ class _RoomRequestFormState extends State<RoomRequestForm>
         'age': _ageController.text,
         'gender': _gender,
         'occupation': _occupation,
-        'budget': _minBudgetController.text, // Assuming _minBudgetController is the budget field
+        'budget':
+            _minBudgetController
+                .text, // Assuming _minBudgetController is the budget field
         'location': _locationController.text,
         'roomType': _preferredRoomType,
         'furnishing': _furnishingPreference,
@@ -356,11 +364,17 @@ class _RoomRequestFormState extends State<RoomRequestForm>
         'guestsPolicy': 'No', // Placeholder, needs actual implementation
         'moveInDate': _moveInDate?.toIso8601String(),
         'description': '', // Placeholder, needs actual implementation
-        'profilePhoto': _profileImage != null ? await FirebaseStorageService.uploadImage(_profileImage!.path) : null,
+        'profilePhoto':
+            _profileImage != null
+                ? await FirebaseStorageService.uploadImage(
+                  kIsWeb ? _profileImage : _profileImage!.path,
+                )
+                : null,
         'createdAt': now.toIso8601String(),
         'selectedPlan': _selectedPlan,
         'expiryDate': expiryDate.toIso8601String(),
-        'visibility': false, // Set to false initially, will be true after payment
+        'visibility':
+            false, // Set to false initially, will be true after payment
         'paymentStatus': 'pending',
         'latitude': null, // Placeholder, needs actual implementation
         'longitude': null, // Placeholder, needs actual implementation
@@ -372,7 +386,7 @@ class _RoomRequestFormState extends State<RoomRequestForm>
       final docRef = await FirebaseFirestore.instance
           .collection('roomRequests')
           .add(requestData);
-      
+
       print('Flatmate request submitted successfully with ID: ${docRef.id}');
 
       // Close loading dialog
@@ -602,7 +616,7 @@ class _RoomRequestFormState extends State<RoomRequestForm>
               (value) => setState(() => _occupation = value),
               Icons.work_outline,
             ),
-            
+
             const SizedBox(height: BuddyTheme.spacingXl),
           ],
         ),
@@ -868,9 +882,7 @@ class _RoomRequestFormState extends State<RoomRequestForm>
                       Icon(
                         Icons.access_time,
                         color:
-                            isSelected
-                                ? BuddyTheme.primaryColor
-                                : Colors.grey,
+                            isSelected ? BuddyTheme.primaryColor : Colors.grey,
                       ),
                       const SizedBox(width: BuddyTheme.spacingMd),
                       Expanded(
@@ -1295,7 +1307,8 @@ class _RoomRequestFormState extends State<RoomRequestForm>
     final c = cardColor ?? t.cardColor;
     final tp = textPrimary ?? t.textTheme.bodyLarge?.color ?? Colors.black;
     final scaffoldBg = t.scaffoldBackgroundColor;
-    final textSecondary = t.textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.black54;
+    final textSecondary =
+        t.textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.black54;
 
     return TweenAnimationBuilder<double>(
       duration: const Duration(milliseconds: 600),
@@ -1538,49 +1551,63 @@ class _RoomRequestFormState extends State<RoomRequestForm>
                       width: 2,
                     ),
                   ),
-                  child: _profileImage != null
-                      ? ClipOval(
-                          child: kIsWeb
-                              ? Image.network(
-                                  _profileImage.path,
-                                  width: 200,
-                                  height: 200,
-                              fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    print('Error loading web image: $error');
-                                    return Container(
+                  child:
+                      _profileImage != null
+                          ? ClipOval(
+                            child:
+                                kIsWeb
+                                    ? Image.network(
+                                      _profileImage.path,
                                       width: 200,
                                       height: 200,
-                                      color: cardColor,
-                                      child: Icon(
-                                        Icons.person,
-                                        size: 80,
-                                        color: BuddyTheme.primaryColor,
-                                      ),
-                                    );
-                                  },
-                                )
-                              : Image.file(
-                                  _profileImage,
-                                  width: 200,
-                                  height: 200,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    print('Error loading mobile image: $error');
-                                    return Container(
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (
+                                        context,
+                                        error,
+                                        stackTrace,
+                                      ) {
+                                        print(
+                                          'Error loading web image: $error',
+                                        );
+                                        return Container(
+                                          width: 200,
+                                          height: 200,
+                                          color: cardColor,
+                                          child: Icon(
+                                            Icons.person,
+                                            size: 80,
+                                            color: BuddyTheme.primaryColor,
+                                          ),
+                                        );
+                                      },
+                                    )
+                                    : Image.file(
+                                      File(_profileImage.path),
                                       width: 200,
                                       height: 200,
-                                      color: cardColor,
-                                      child: Icon(
-                                        Icons.person,
-                                        size: 80,
-                                        color: BuddyTheme.primaryColor,
-                                      ),
-                                    );
-                                  },
-                                ),
-                        )
-                      : Column(
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (
+                                        context,
+                                        error,
+                                        stackTrace,
+                                      ) {
+                                        print(
+                                          'Error loading mobile image: $error',
+                                        );
+                                        return Container(
+                                          width: 200,
+                                          height: 200,
+                                          color: cardColor,
+                                          child: Icon(
+                                            Icons.person,
+                                            size: 80,
+                                            color: BuddyTheme.primaryColor,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                          )
+                          : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
@@ -1597,7 +1624,7 @@ class _RoomRequestFormState extends State<RoomRequestForm>
                                 ),
                               ),
                             ],
-                        ),
+                          ),
                 ),
               ),
             ),

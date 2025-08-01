@@ -30,11 +30,11 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Start the server
-echo "✅ Starting server on http://localhost:3000"
-echo "📊 Health check: http://localhost:3000/health"
+echo "✅ Starting server on http://152.58.15.6:3000"
+echo "📊 Health check: http://152.58.15.6:3000/health"
 echo "🔧 Environment: $(grep NODE_ENV .env | cut -d '=' -f2 || echo 'development')"
 echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 
-npm run dev 
+npm run dev
